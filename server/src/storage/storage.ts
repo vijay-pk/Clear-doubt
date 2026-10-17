@@ -65,7 +65,31 @@ class SupabaseStorage implements Storage {
     return { Authorization: `Bearer ${this.serviceKey}`, apikey: this.serviceKey };
   }
 
+  private bucketReady = false;
+
+  // Create the private bucket on first use so deployment needs no manual step.
+  private async ensureBucket(): Promise<void> {
+    if (this.bucketReady) return;
+    const res = await fetch(`${this.base}/storage/v1/bucket`, {
+      method: "POST",
+      headers: { ...this.headers(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id: this.bucket, name: this.bucket, public: false }),
+    });
+    // 200 = created; a conflict (already exists) is fine too.
+    if (res.ok || res.status === 409) {
+      this.bucketReady = true;
+      return;
+    }
+    const text = await res.text();
+    if (/already exists/i.test(text)) {
+      this.bucketReady = true;
+      return;
+    }
+    throw new Error(`Supabase bucket create failed (${res.status}): ${text}`);
+  }
+
   async put(key: string, bytes: Buffer, contentType: string): Promise<StoredObject> {
+    await this.ensureBucket();
     const url = `${this.base}/storage/v1/object/${this.bucket}/${encodeURI(key)}`;
     const res = await fetch(url, {
       method: "POST",
