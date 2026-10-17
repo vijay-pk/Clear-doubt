@@ -1,7 +1,8 @@
 import { prisma } from "../../db/prisma.js";
 import { deliverDraft } from "../../responses/deliveryService.js";
 import { finalText } from "../../responses/approvalService.js";
-import { sendWhatsAppText } from "../../messaging/whatsappCloud.js";
+import { sendWhatsApp } from "../../messaging/whatsappSend.js";
+import { getSettings } from "../../settings/settingsService.js";
 
 type Payload = { draftId: string } | { whatsappDeliveryLogId: string };
 
@@ -29,7 +30,8 @@ export async function deliverMessage(payloadRaw: unknown): Promise<void> {
 
   await prisma.deliveryLog.update({ where: { id: log.id }, data: { status: "SENDING", attempts: { increment: 1 } } });
   try {
-    const res = await sendWhatsAppText(phone, finalText(draft));
+    const settings = await getSettings();
+    const res = await sendWhatsApp(phone, finalText(draft), settings);
     await prisma.deliveryLog.update({
       where: { id: log.id },
       data: { status: "SENT", sentAt: new Date(), providerMessageId: res.id, error: null },

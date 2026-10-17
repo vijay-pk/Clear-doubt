@@ -5,6 +5,7 @@ import { settingsRouter } from "./settings.js";
 import { knowledgeRouter } from "./knowledge.js";
 import { usersRouter } from "./users.js";
 import { logsRouter } from "./logs.js";
+import { whatsappRouter } from "./whatsapp.js";
 
 export const adminRouter = Router();
 
@@ -16,3 +17,4 @@ adminRouter.use(settingsRouter);
 adminRouter.use(knowledgeRouter);
 adminRouter.use(usersRouter);
 adminRouter.use(logsRouter);
+adminRouter.use(whatsappRouter);

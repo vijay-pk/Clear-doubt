@@ -3,6 +3,8 @@ import { writeAudit } from "../audit/audit.js";
 
 export type ReplyMode = "A" | "B" | "C"; // A=Manual, B=Supervised, C=Controlled Auto-Reply
 
+export type WhatsAppProvider = "none" | "cloud" | "web";
+
 export interface PlatformSettings {
   replyMode: ReplyMode;
   autoReplyPaused: boolean; // emergency global pause for mode C
@@ -11,6 +13,10 @@ export interface PlatformSettings {
   autoReplyImagesAllowed: boolean; // image doubts eligible for auto-reply?
   dataAiTrainingAllowed: boolean; // compliance lock — always false
   defaultDeliveryChannels: Array<"WEBSITE" | "EMAIL" | "WHATSAPP">;
+  // WhatsApp sending backend: official Cloud API, or Baileys WhatsApp Web (QR).
+  whatsappProvider: WhatsAppProvider;
+  // WhatsApp Web is unofficial automation; a super admin must acknowledge the ban risk.
+  whatsappWebRiskAck: boolean;
 }
 
 const DEFAULTS: PlatformSettings = {
@@ -21,6 +27,8 @@ const DEFAULTS: PlatformSettings = {
   autoReplyImagesAllowed: false,
   dataAiTrainingAllowed: false,
   defaultDeliveryChannels: ["WEBSITE", "EMAIL"],
+  whatsappProvider: "none",
+  whatsappWebRiskAck: false,
 };
 
 const KEY = "platform";

@@ -3,9 +3,9 @@ import { prisma } from "../db/prisma.js";
 import { getSettings } from "../settings/settingsService.js";
 import { enqueue } from "../jobs/queue.js";
 import { writeAudit } from "../audit/audit.js";
-import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
 import { finalText } from "./approvalService.js";
+import { whatsappReady } from "../messaging/whatsappSend.js";
 
 // Deliver an APPROVED draft across the configured channels. Idempotent: the
 // APPROVED->SENDING claim runs once; each channel has its own DeliveryLog keyed
@@ -40,7 +40,7 @@ export async function deliverDraft(draftId: string): Promise<void> {
   const channels = new Set<DeliveryChannel>(["WEBSITE"]); // portal always
   for (const ch of settings.defaultDeliveryChannels) {
     if (ch === "EMAIL" && student.email) channels.add("EMAIL");
-    if (ch === "WHATSAPP" && env.WHATSAPP_ENABLED && student.phone) channels.add("WHATSAPP");
+    if (ch === "WHATSAPP" && whatsappReady(settings) && student.phone) channels.add("WHATSAPP");
   }
 
   // Website: post the tutor message into the thread (inline, synchronous).

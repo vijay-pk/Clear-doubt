@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../lib/api";
 import { useToast } from "../../lib/toast";
+import { useAuth } from "../../lib/auth";
 import { Card, Button, Badge, Skeleton } from "../../components/ui";
 
 type Mode = "A" | "B" | "C";
@@ -106,6 +108,9 @@ export default function Settings() {
         })}
       </Card>
 
+      {/* WhatsApp sending backend */}
+      <WhatsAppCard />
+
       {/* Integration status (no secrets shown) */}
       <Card>
         <div className="mb-3 font-medium">Integrations</div>
@@ -135,4 +140,100 @@ function Toggle({ label, value, onChange, disabled }: { label: string; value: bo
 }
 function IntRow({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
   return <div className="flex items-center justify-between py-1.5 text-sm"><span>{label}</span><Badge tone={ok ? "green" : "amber"}>{value}</Badge></div>;
+}
+
+interface WaStatus {
+  provider: "none" | "cloud" | "web";
+  whatsappWebRiskAck: boolean;
+  cloudConfigured: boolean;
+  web: { state: string; detail?: string; qr: string | null; botId: string | null };
+}
+
+function WhatsAppCard() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const isSuper = user?.role === "SUPER_ADMIN";
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["wa-status"],
+    queryFn: async () => await api.get<WaStatus>("/admin/whatsapp/status"),
+    refetchInterval: (q) => {
+      const s = (q.state.data as WaStatus | undefined)?.web.state;
+      return s === "connecting" || s === "qr" ? 2500 : 15000;
+    },
+  });
+
+  async function call(path: string, body: Record<string, unknown>, label: string) {
+    setBusy(label);
+    try {
+      await api.post(`/admin/whatsapp/${path}`, body);
+      qc.invalidateQueries({ queryKey: ["wa-status"] });
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Failed", "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (isLoading || !data) return <Card><Skeleton className="h-24" /></Card>;
+  const web = data.web;
+
+  return (
+    <Card>
+      <div className="mb-3 font-medium">WhatsApp delivery</div>
+      <Row label="Sending backend">
+        <select
+          value={data.provider}
+          disabled={!isSuper || busy !== null}
+          onChange={(e) => call("provider", { provider: e.target.value }, "provider")}
+          className="rounded-xl px-3 py-2 text-sm"
+          style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)" }}
+        >
+          <option value="none">Off</option>
+          <option value="cloud">Official Cloud API</option>
+          <option value="web">WhatsApp Web (QR)</option>
+        </select>
+      </Row>
+
+      {data.provider === "cloud" && (
+        <IntRow label="Cloud API" value={data.cloudConfigured ? "configured" : "set keys in env"} ok={data.cloudConfigured} />
+      )}
+
+      {data.provider === "web" && (
+        <div className="mt-2 space-y-3">
+          <p className="rounded-lg p-2 text-xs" style={{ background: "var(--surface-2)", color: "var(--text-soft)" }}>
+            Unofficial automation. May violate WhatsApp's terms and can get the number banned — use a dedicated number. Needs an always-on host; on a sleeping/free host the link drops.
+          </p>
+          <Toggle label="I acknowledge the risk" value={data.whatsappWebRiskAck} disabled={!isSuper || busy !== null}
+            onChange={(v) => call("ack-risk", { ack: v }, "ack")} />
+
+          <IntRow label="Connection" value={web.state} ok={web.state === "connected"} />
+          {web.detail && <p className="text-xs" style={{ color: "var(--text-soft)" }}>{web.detail}</p>}
+
+          {web.qr && (
+            <div className="flex flex-col items-center gap-2 rounded-xl p-3" style={{ background: "#fff" }}>
+              <img src={web.qr} alt="WhatsApp QR" width={220} height={220} />
+              <span className="text-xs text-black">WhatsApp → Linked devices → Link a device</span>
+            </div>
+          )}
+
+          {isSuper && (
+            <div className="flex gap-2">
+              {web.state !== "connected" && (
+                <Button loading={busy === "connect"} disabled={!data.whatsappWebRiskAck} onClick={() => call("web/connect", {}, "connect")}>
+                  {web.state === "qr" || web.state === "connecting" ? "Refresh" : "Connect / show QR"}
+                </Button>
+              )}
+              {(web.state === "connected" || web.state === "qr" || web.state === "connecting") && (
+                <Button variant="danger" loading={busy === "logout"} onClick={() => call("web/logout", {}, "logout")}>Log out</Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {!isSuper && <p className="mt-2 text-xs" style={{ color: "var(--text-soft)" }}>Only a super admin can change the WhatsApp backend.</p>}
+    </Card>
+  );
 }

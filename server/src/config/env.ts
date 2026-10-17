@@ -61,6 +61,8 @@ const schema = z.object({
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_APP_SECRET: z.string().optional(),
+  // WhatsApp Web (Baileys, QR-linked device). Session dir holds credentials.
+  WHATSAPP_WEB_SESSION_DIR: z.string().default("./wa-session"),
 
   // Storage for uploads (private)
   STORAGE_PROVIDER: z.enum(["local", "supabase"]).default("local"),
