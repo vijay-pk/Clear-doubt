@@ -9,7 +9,7 @@ services:
   - type: web
     name: adways-doubts
     runtime: docker
-    plan: starter # use 'free' only for demos; worker pauses when idle on free
+    plan: free # free: service sleeps when idle, worker pauses — upgrade to starter+ for always-on
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     autoDeploy: true
