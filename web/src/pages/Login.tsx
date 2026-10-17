@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type User } from "../lib/api";
-import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
 import { Button, Input, Field, Card } from "../components/ui";
 
@@ -12,7 +12,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
-  const { refresh } = useAuth();
+  const qc = useQueryClient();
   const toast = useToast();
 
   async function submit(e: React.FormEvent) {
@@ -21,7 +21,9 @@ export default function Login() {
     try {
       if (mode === "login") {
         const res = await api.post<{ user: User; redirect: string }>("/auth/login", { email, password });
-        refresh();
+        // Seed the cache synchronously so the protected route sees the user
+        // immediately (invalidate is async and raced the navigation → bounce).
+        qc.setQueryData(["me"], res.user);
         nav(res.redirect, { replace: true });
       } else {
         await api.post("/auth/register", { email, name, password });
