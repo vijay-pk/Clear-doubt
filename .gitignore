@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.local
+server/.localdb/
+server/uploads/
+server/storage/
+coverage/
+.DS_Store
+*.log
+npm-debug.log*
+.vite/
+web/dist/

@@ -1,0 +1,330 @@
+// Adways Doubt-Clearing Platform — Prisma schema.
+// Base relational tables only. The pgvector/tsvector columns on DocumentChunk
+// and ApprovedAnswer are added by handwritten SQL migrations and accessed via
+// $queryRaw (Prisma cannot model generated tsvector or portable vector columns).
+// Migrations are written BY HAND; never run `prisma migrate dev` against a real DB.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  STUDENT
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum DoubtStatus {
+  OPEN
+  AWAITING_STUDENT
+  ANSWERED
+  CLOSED
+}
+
+enum MessageSender {
+  STUDENT
+  TUTOR
+  SYSTEM
+}
+
+enum MessageKind {
+  TEXT
+  IMAGE
+}
+
+enum AttachmentStatus {
+  PENDING
+  PROCESSED
+  UNREADABLE
+  REJECTED
+}
+
+enum DraftStatus {
+  DRAFTING
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  SENT
+  FAILED
+}
+
+enum DocumentStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum DeliveryChannel {
+  WEBSITE
+  EMAIL
+  WHATSAPP
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum TokenPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  passwordHash  String
+  role          Role       @default(STUDENT)
+  name          String
+  phone         String? // optional WhatsApp E.164, students only
+  emailVerified Boolean    @default(false)
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  sessions       Session[]
+  tokens         VerificationToken[]
+  doubts         Doubt[]
+  uploadedDocs   CourseDocument[]
+  decidedDrafts  ResponseDraft[]     @relation("DraftDecider")
+  auditLogs      AuditLog[]
+  approvedAnswers ApprovedAnswer[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique // sha256 of the session token held in the cookie
+  csrfSecret String // per-session secret for double-submit CSRF
+  userAgent  String?
+  ip         String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model VerificationToken {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String       @unique
+  purpose   TokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([userId, purpose])
+}
+
+model Doubt {
+  id        String      @id @default(cuid())
+  studentId String
+  student   User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title     String
+  status    DoubtStatus @default(OPEN)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  messages DoubtMessage[]
+  drafts   ResponseDraft[]
+
+  @@index([studentId])
+  @@index([status])
+}
+
+model DoubtMessage {
+  id        String        @id @default(cuid())
+  doubtId   String
+  doubt     Doubt         @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  sender    MessageSender
+  kind      MessageKind   @default(TEXT)
+  body      String // text, or extracted/combined text for image questions
+  createdAt DateTime      @default(now())
+
+  attachments Attachment[]
+  draft       ResponseDraft? @relation("DraftForQuestion")
+
+  @@index([doubtId])
+}
+
+model Attachment {
+  id             String           @id @default(cuid())
+  doubtMessageId String
+  doubtMessage   DoubtMessage     @relation(fields: [doubtMessageId], references: [id], onDelete: Cascade)
+  storageKey     String // private storage key; never a public URL
+  originalName   String
+  mimeType       String
+  sizeBytes      Int
+  sha256         String
+  status         AttachmentStatus @default(PENDING)
+  ocrText        String? // extracted text from OCR/vision
+  visionText     String? // vision model description
+  error          String?
+  createdAt      DateTime         @default(now())
+
+  @@index([doubtMessageId])
+  @@index([status])
+}
+
+model ResponseDraft {
+  id                String      @id @default(cuid())
+  doubtId           String
+  doubt             Doubt       @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  questionMessageId String      @unique
+  questionMessage   DoubtMessage @relation("DraftForQuestion", fields: [questionMessageId], references: [id], onDelete: Cascade)
+  status            DraftStatus @default(DRAFTING)
+  answerText        String?
+  editedText        String? // admin edit, overrides answerText when sending
+  isClarification   Boolean     @default(false)
+  evidenceSufficient Boolean    @default(false)
+  confidence        Float       @default(0)
+  modelUsed         String?
+  autoEligible      Boolean     @default(false)
+  decidedById       String?
+  decidedBy         User?       @relation("DraftDecider", fields: [decidedById], references: [id])
+  decidedAt         DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  citations    Citation[]
+  deliveries   DeliveryLog[]
+  approvedAnswer ApprovedAnswer?
+
+  @@index([doubtId])
+  @@index([status])
+}
+
+model Citation {
+  id        String  @id @default(cuid())
+  draftId   String
+  draft     ResponseDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  chunkId   String?
+  documentId String?
+  score     Float
+  snippet   String
+
+  @@index([draftId])
+}
+
+model CourseDocument {
+  id           String         @id @default(cuid())
+  title        String
+  originalName String
+  storageKey   String
+  mimeType     String
+  sizeBytes    Int
+  sha256       String
+  status       DocumentStatus @default(UPLOADED)
+  error        String?
+  uploadedById String
+  uploadedBy   User           @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // chunks are a raw table (DocumentChunk) with embedding/tsv columns; see SQL migration
+  @@index([status])
+}
+
+model DeliveryLog {
+  id             String          @id @default(cuid())
+  draftId        String
+  draft          ResponseDraft   @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  channel        DeliveryChannel
+  status         DeliveryStatus  @default(PENDING)
+  idempotencyKey String          @unique
+  providerMessageId String?
+  attempts       Int             @default(0)
+  error          String?
+  createdAt      DateTime        @default(now())
+  sentAt         DateTime?
+
+  @@index([draftId])
+  @@index([status])
+}
+
+model ApprovedAnswer {
+  id          String   @id @default(cuid())
+  question    String
+  answer      String
+  draftId     String?  @unique
+  draft       ResponseDraft? @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  tags        String[]
+  active      Boolean  @default(true)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  // embedding column added by SQL migration; queried via $queryRaw
+
+  @@index([active])
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  status      JobStatus @default(PENDING)
+  dedupeKey   String?
+  runAt       DateTime  @default(now())
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  lastError   String?
+  lockedAt    DateTime?
+  lockedBy    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([type, dedupeKey])
+  @@index([status, runAt])
+}
+
+model Setting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  entityType String?
+  entityId   String?
+  meta       Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

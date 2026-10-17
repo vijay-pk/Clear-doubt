@@ -1,0 +1,79 @@
+# Render Blueprint for the Adways Doubt-Clearing Platform.
+# A single Docker web service that serves the API + built SPA and runs the
+# in-process worker. Migrations apply on boot (see Dockerfile CMD).
+#
+# IMPORTANT: the worker runs inside the web service. On the FREE plan the service
+# sleeps when idle, pausing the worker — fine for a demo, NOT for reliable email/
+# WhatsApp delivery. Use a paid always-on plan (starter+) for production.
+services:
+  - type: web
+    name: adways-doubts
+    runtime: docker
+    plan: starter # use 'free' only for demos; worker pauses when idle on free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: APP_URL
+        value: https://doubts.adwaysacademy.com
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: WORKER_ENABLED
+        value: "true"
+      - key: STORAGE_PROVIDER
+        value: supabase
+      - key: ENABLE_DEV_ROUTES
+        value: "false"
+      # ---- Secrets: set these in the Render dashboard (sync:false) ----
+      - key: DATABASE_URL
+        sync: false # Supabase transaction pooler (6543, pgbouncer=true)
+      - key: DIRECT_URL
+        sync: false # Supabase session pooler (5432) for migrations
+      - key: ADMIN_SEED
+        sync: false
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_TEXT_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_VISION_MODEL
+        value: meta-llama/llama-4-scout-17b-16e-instruct
+      - key: EMBEDDING_PROVIDER
+        value: openai_compatible
+      - key: EMBEDDING_API_KEY
+        sync: false
+      - key: EMBEDDING_BASE_URL
+        sync: false
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: EMBEDDING_DIM
+        value: "1536"
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: EMAIL_FROM
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: doubts-private
+      - key: WHATSAPP_ENABLED
+        value: "false" # flip to true once Cloud API creds are set below
+      - key: WHATSAPP_CLOUD_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
