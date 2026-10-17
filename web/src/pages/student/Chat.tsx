@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { useToast } from "../../lib/toast";
+import { useDropzone } from "../../lib/useDropzone";
 import { Button, Textarea, Badge, Spinner, EmptyState, Skeleton } from "../../components/ui";
 
 interface DoubtSummary { id: string; title: string; status: string; updatedAt: string; }
@@ -105,6 +106,14 @@ function Composer({ onSend, disabled }: { onSend: (body: string, image: File | n
   const [image, setImage] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
+  const { dragging, dropProps } = useDropzone(
+    (f) => {
+      if (f.type.startsWith("image/")) setImage(f);
+      else toast("Only image files can be attached here.", "error");
+    },
+    (f) => f.type.startsWith("image/"),
+  );
 
   async function send() {
     if (!body.trim() && !image) return;
@@ -120,7 +129,13 @@ function Composer({ onSend, disabled }: { onSend: (body: string, image: File | n
   }
 
   return (
-    <div className="p-3" style={{ borderTop: "1px solid var(--border)" }}>
+    <div className="relative p-3" style={{ borderTop: "1px solid var(--border)" }} {...dropProps}>
+      {dragging && (
+        <div className="absolute inset-0 z-10 m-2 flex items-center justify-center rounded-2xl border-2 border-dashed text-sm font-medium"
+          style={{ borderColor: "var(--color-brand)", background: "color-mix(in srgb, var(--color-brand) 10%, var(--surface))", color: "var(--color-brand)" }}>
+          Drop image to attach
+        </div>
+      )}
       {image && (
         <div className="mb-2 flex items-center gap-2 text-sm" style={{ color: "var(--text-soft)" }}>
           📎 {image.name}

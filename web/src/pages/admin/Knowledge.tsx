@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../lib/api";
 import { useToast } from "../../lib/toast";
+import { useDropzone } from "../../lib/useDropzone";
 import { Card, Button, Input, Textarea, Field, Badge, Skeleton, EmptyState } from "../../components/ui";
 
 interface Doc { id: string; title: string; originalName: string; status: string; createdAt: string; error?: string | null; uploadedBy: { name: string }; }
@@ -55,13 +56,17 @@ function Documents() {
     }
   }
 
+  const { dragging, dropProps } = useDropzone(upload);
+
   return (
     <div>
-      <Card className="mb-4">
-        <div className="flex items-center justify-between gap-3">
+      <Card className={`mb-4 relative transition ${dragging ? "ring-2 ring-[var(--color-brand)]" : ""}`}>
+        <div {...dropProps} className="flex items-center justify-between gap-3">
           <div>
             <div className="font-medium">Upload course material</div>
-            <div className="text-sm" style={{ color: "var(--text-soft)" }}>PDF, DOCX, or TXT. Extracted, chunked, and embedded for retrieval.</div>
+            <div className="text-sm" style={{ color: "var(--text-soft)" }}>
+              {dragging ? "Drop file to upload" : "PDF, DOCX, or TXT — click Upload or drag a file here."}
+            </div>
           </div>
           <input ref={fileRef} type="file" accept=".pdf,.docx,.txt,.md" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           <Button loading={busy} onClick={() => fileRef.current?.click()}>Upload</Button>
