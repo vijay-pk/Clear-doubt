@@ -35,14 +35,14 @@ class MockEmbedder implements Embedder {
 }
 
 class OpenAICompatibleEmbedder implements Embedder {
-  enabled = true;
+  enabled: boolean;
   constructor(public dim: number) {
-    if (!env.EMBEDDING_BASE_URL || !env.EMBEDDING_API_KEY) {
-      throw new Error("EMBEDDING_PROVIDER=openai_compatible requires EMBEDDING_BASE_URL and EMBEDDING_API_KEY");
-    }
+    // Degrade gracefully to keyword-only retrieval when no key is configured,
+    // rather than crashing the app (lets you deploy without a paid embeddings key).
+    this.enabled = Boolean(env.EMBEDDING_BASE_URL && env.EMBEDDING_API_KEY);
   }
   async embed(texts: string[]): Promise<number[][]> {
-    if (texts.length === 0) return [];
+    if (!this.enabled || texts.length === 0) return [];
     const res = await fetch(`${env.EMBEDDING_BASE_URL!.replace(/\/$/, "")}/embeddings`, {
       method: "POST",
       headers: { Authorization: `Bearer ${env.EMBEDDING_API_KEY}`, "Content-Type": "application/json" },
