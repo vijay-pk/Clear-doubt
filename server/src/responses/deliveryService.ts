@@ -45,7 +45,7 @@ export async function deliverDraft(draftId: string): Promise<void> {
 
   // Website: post the tutor message into the thread (inline, synchronous).
   if (channels.has("WEBSITE")) {
-    await deliverWebsite(draftId, draft.doubtId, text);
+    await deliverWebsite(draftId, draft.doubtId, text, draft.isClarification);
   }
 
   // Email / WhatsApp: create a DeliveryLog and enqueue a per-channel job.
@@ -68,7 +68,7 @@ export async function deliverDraft(draftId: string): Promise<void> {
   await writeAudit({ action: "draft.sent", entityType: "ResponseDraft", entityId: draftId, meta: { channels: [...channels] } });
 }
 
-async function deliverWebsite(draftId: string, doubtId: string, text: string) {
+async function deliverWebsite(draftId: string, doubtId: string, text: string, isClarification: boolean) {
   const idempotencyKey = `${draftId}:WEBSITE`;
   const existing = await prisma.deliveryLog.findUnique({ where: { idempotencyKey } });
   if (existing && existing.status === "SENT") return;
@@ -77,7 +77,8 @@ async function deliverWebsite(draftId: string, doubtId: string, text: string) {
     await tx.doubtMessage.create({
       data: { doubtId, sender: "TUTOR", kind: "TEXT", body: text },
     });
-    await tx.doubt.update({ where: { id: doubtId }, data: { status: "ANSWERED" } });
+    // A clarification request leaves the doubt waiting on the student's reply.
+    await tx.doubt.update({ where: { id: doubtId }, data: { status: isClarification ? "AWAITING_STUDENT" : "ANSWERED" } });
     await tx.deliveryLog.upsert({
       where: { idempotencyKey },
       create: { draftId, channel: "WEBSITE", status: "SENT", idempotencyKey, sentAt: new Date() },

@@ -105,3 +105,17 @@ export async function regenerateDraft(draftId: string, adminId: string) {
   await writeAudit({ actorId: adminId, action: "draft.regenerate", entityType: "ResponseDraft", entityId: draftId });
   await enqueue("generateAnswer", { questionMessageId: draft.questionMessageId }, { dedupeKey: `gen:${draft.questionMessageId}` });
 }
+
+// Send a "please share more details" request to the student instead of an answer.
+// Delivered like an answer, but the doubt is left awaiting the student's reply.
+export async function requestMoreDetails(draftId: string, adminId: string, message: string) {
+  const draft = await loadPending(draftId);
+  const text = message.trim();
+  if (!text) throw badRequest("Write what details you need from the student.", "empty_request");
+  await prisma.responseDraft.update({
+    where: { id: draft.id },
+    data: { status: "APPROVED", editedText: text, isClarification: true, decidedById: adminId, decidedAt: new Date() },
+  });
+  await writeAudit({ actorId: adminId, action: "draft.request_details", entityType: "ResponseDraft", entityId: draftId });
+  await enqueue("deliverMessage", { draftId }, { dedupeKey: `deliver:${draftId}` });
+}

@@ -62,6 +62,17 @@ describe("mandatory approval workflow", () => {
     expect(draft.status).toBe("PENDING_APPROVAL");
   });
 
+  it("request more details sends a clarification and leaves the doubt awaiting the student", async () => {
+    const { doubtId, draftId } = await studentDoubt("rd@test.local", "vague question");
+    const { a: admin, csrf } = await loginAsAdmin();
+    const r = await admin.post(`/api/admin/drafts/${draftId}/request-details`).set("X-CSRF-Token", csrf).send({ message: "Please share more context." });
+    expect(r.status).toBe(200);
+    await runDueJobs();
+    const doubt = await prisma.doubt.findUniqueOrThrow({ where: { id: doubtId }, include: { messages: true } });
+    expect(doubt.status).toBe("AWAITING_STUDENT");
+    expect(doubt.messages.find((m) => m.sender === "TUTOR")?.body).toBe("Please share more context.");
+  });
+
   it("13. delivery is idempotent — running jobs twice sends once", async () => {
     const { doubtId, draftId } = await studentDoubt("a13@test.local", "Idempotency check");
     const { a: admin, csrf } = await loginAsAdmin();

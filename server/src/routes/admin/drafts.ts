@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../db/prisma.js";
 import { asyncHandler } from "../../http/helpers.js";
-import { approveDraft, rejectDraft, regenerateDraft } from "../../responses/approvalService.js";
+import { approveDraft, rejectDraft, regenerateDraft, requestMoreDetails } from "../../responses/approvalService.js";
 import { promoteDraft } from "../../responses/approvedAnswerService.js";
 import { notFound } from "../../lib/errors.js";
 
@@ -69,6 +69,16 @@ draftsRouter.post(
   "/drafts/:id/regenerate",
   asyncHandler(async (req, res) => {
     await regenerateDraft(String(req.params.id), req.user!.id);
+    res.json({ ok: true });
+  }),
+);
+
+// Send a request for more details to the student (instead of answering).
+draftsRouter.post(
+  "/drafts/:id/request-details",
+  asyncHandler(async (req, res) => {
+    const { message } = z.object({ message: z.string().min(1).max(8000) }).parse(req.body);
+    await requestMoreDetails(String(req.params.id), req.user!.id, message);
     res.json({ ok: true });
   }),
 );

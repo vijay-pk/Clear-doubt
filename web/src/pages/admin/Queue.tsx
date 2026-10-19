@@ -71,9 +71,16 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
   });
   const [text, setText] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState(false);
+  const [detailsMode, setDetailsMode] = useState(false);
+  const [detailsMsg, setDetailsMsg] = useState("");
   const answer = text ?? data?.answerText ?? "";
 
-  async function act(kind: "approve" | "reject" | "regenerate") {
+  async function act(kind: "approve" | "reject" | "regenerate" | "request-details") {
+    if (kind === "request-details" && !detailsMsg.trim()) {
+      toast("Write what details you need from the student.", "error");
+      return;
+    }
     setBusy(kind);
     try {
       if (kind === "approve") {
@@ -83,6 +90,9 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
       } else if (kind === "reject") {
         await api.post(`/admin/drafts/${id}/reject`, {});
         toast("Rejected.", "info");
+      } else if (kind === "request-details") {
+        await api.post(`/admin/drafts/${id}/request-details`, { message: detailsMsg });
+        toast("Request for details sent to the student.", "success");
       } else {
         await api.post(`/admin/drafts/${id}/regenerate`, {});
         toast("Regenerating…", "info");
@@ -97,14 +107,24 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
 
   if (isLoading || !data) return <div className="mt-4"><Skeleton className="h-32" /></div>;
   const att = data.questionMessage.attachments?.[0];
+  const imgSrc = att ? `/api/doubts/attachments/${att.id}` : "";
 
   return (
     <div className="mt-4 space-y-4 border-t pt-4" style={{ borderColor: "var(--border)" }}>
       {att && (
         <div>
-          <div className="mb-1 text-[13px] font-medium" style={{ color: "var(--text-soft)" }}>Attached image {att.status === "UNREADABLE" && <Badge tone="red">Unreadable</Badge>}</div>
-          <a href={`/api/doubts/attachments/${att.id}`} target="_blank" rel="noreferrer" className="underline" style={{ color: "var(--color-brand)" }}>View photo</a>
-          {att.ocrText && <p className="mt-1 rounded-lg p-2 text-sm" style={{ background: "var(--surface-2)" }}>OCR: {att.ocrText}</p>}
+          <div className="mb-1.5 text-[13px] font-medium" style={{ color: "var(--text-soft)" }}>
+            Attached image {att.status === "UNREADABLE" && <Badge tone="red">Unreadable</Badge>}
+          </div>
+          <button
+            onClick={() => setLightbox(true)}
+            className="block overflow-hidden rounded-xl"
+            style={{ border: "1px solid var(--border)", background: "var(--surface-2)" }}
+            title="Click to enlarge"
+          >
+            <img src={imgSrc} alt="Student's attachment" className="max-h-56 w-auto object-contain" />
+          </button>
+          {att.ocrText && <p className="mt-2 rounded-lg p-2 text-sm" style={{ background: "var(--surface-2)" }}>OCR: {att.ocrText}</p>}
         </div>
       )}
 
@@ -126,13 +146,38 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
         </div>
       )}
 
+      {detailsMode && (
+        <div className="rounded-xl p-3" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+          <div className="mb-1.5 text-[13px] font-medium" style={{ color: "var(--text-soft)" }}>Ask the student for more details</div>
+          <Textarea rows={3} value={detailsMsg} onChange={(e) => setDetailsMsg(e.target.value)} placeholder="e.g. Could you share which campaign or screenshot you mean?" />
+          <div className="mt-2 flex gap-2">
+            <Button onClick={() => act("request-details")} loading={busy === "request-details"}>Send request</Button>
+            <Button variant="secondary" onClick={() => setDetailsMode(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => act("approve")} loading={busy === "approve"}>
           {text !== null && text !== data.answerText ? "Save & send" : "Approve & send"}
         </Button>
+        {!detailsMode && (
+          <Button variant="secondary" onClick={() => setDetailsMode(true)}>Request more details</Button>
+        )}
         <Button variant="secondary" onClick={() => act("regenerate")} loading={busy === "regenerate"}>Regenerate</Button>
         <Button variant="danger" onClick={() => act("reject")} loading={busy === "reject"}>Reject</Button>
       </div>
+
+      {lightbox && att && (
+        <div
+          onClick={() => setLightbox(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ background: "rgba(0,0,0,.8)" }}
+        >
+          <img src={imgSrc} alt="Student's attachment" className="max-h-[90vh] max-w-full rounded-lg object-contain" />
+          <button className="absolute right-4 top-4 text-2xl text-white" aria-label="Close">×</button>
+        </div>
+      )}
     </div>
   );
 }
