@@ -76,7 +76,7 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
   });
   const [text, setText] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [lightbox, setLightbox] = useState(false);
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const [detailsMode, setDetailsMode] = useState(false);
   const [detailsMsg, setDetailsMsg] = useState("");
   const answer = text ?? data?.answerText ?? "";
@@ -128,7 +128,15 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
                   className="max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-1.5 text-sm"
                   style={m.sender === "STUDENT" ? { background: "var(--color-brand)", color: "#fff" } : { background: "var(--surface)", border: "1px solid var(--border)" }}
                 >
-                  {m.attachments?.length ? <span className="mr-1 opacity-80">📷 </span> : null}
+                  {m.attachments?.map((a) => (
+                    <img
+                      key={a.id}
+                      src={`/api/doubts/attachments/${a.id}`}
+                      alt={a.originalName}
+                      onClick={() => setLightbox(`/api/doubts/attachments/${a.id}`)}
+                      className="mb-1 max-h-40 cursor-pointer rounded-md object-contain"
+                    />
+                  ))}
                   {m.body}
                 </div>
               </div>
@@ -144,7 +152,7 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
               Attached image {att.status === "UNREADABLE" && <Badge tone="red">Unreadable</Badge>}
             </div>
             <button
-              onClick={() => setLightbox(true)}
+              onClick={() => setLightbox(imgSrc)}
               className="flex h-44 w-full items-center justify-center overflow-hidden rounded-xl"
               style={{ border: "1px solid var(--border)", background: "var(--surface-2)" }}
               title="Click to enlarge"
@@ -196,13 +204,13 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
         <Button variant="danger" onClick={() => act("reject")} loading={busy === "reject"}>Reject</Button>
       </div>
 
-      {lightbox && att && (
+      {lightbox && (
         <div
-          onClick={() => setLightbox(false)}
+          onClick={() => setLightbox(null)}
           className="fixed inset-0 z-50 flex items-center justify-center p-6"
           style={{ background: "rgba(0,0,0,.8)" }}
         >
-          <img src={imgSrc} alt="Student's attachment" className="max-h-[90vh] max-w-full rounded-lg object-contain" />
+          <img src={lightbox} alt="Attachment" className="max-h-[90vh] max-w-full rounded-lg object-contain" />
           <button className="absolute right-4 top-4 text-2xl text-white" aria-label="Close">×</button>
         </div>
       )}
