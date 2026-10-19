@@ -80,8 +80,8 @@ doubtsRouter.get(
     const owner = att.doubtMessage.doubt.studentId;
     const isAdmin = req.user!.role !== "STUDENT";
     if (!isAdmin && owner !== req.user!.id) throw forbidden(); // block URL tampering
-    const signed = await getStorage().createSignedUrl(att.storageKey, 120);
-    if (signed) return res.redirect(signed);
+    // Stream the bytes through this same-origin endpoint (works under a strict
+    // img-src 'self' CSP and keeps the private file from being exposed via a URL).
     const bytes = await getStorage().getBytes(att.storageKey);
     res.setHeader("Content-Type", att.mimeType);
     res.setHeader("Content-Disposition", `inline; filename="${att.originalName.replace(/"/g, "")}"`);
