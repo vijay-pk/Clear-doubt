@@ -41,12 +41,23 @@ export async function buildDraft(questionMessageId: string) {
   }
 
   const ai = getAI();
-  const result = await ai.generateAnswer({
-    question: question.body,
-    context,
-    imageText,
-    imageReadable,
-  });
+  let result;
+  try {
+    result = await ai.generateAnswer({ question: question.body, context, imageText, imageReadable });
+  } catch (err) {
+    // AI call failed (e.g. a decommissioned model or bad key). Never leave the
+    // queue silently empty — create a draft a human can answer, and log the cause.
+    logger.error({ err }, "AI generateAnswer failed; creating a fallback draft for manual review");
+    return upsertDraft(questionMessageId, question.doubtId, {
+      answerText:
+        "The automatic draft could not be generated for this question. Please review and answer it manually.",
+      isClarification: false,
+      evidenceSufficient: false,
+      confidence: 0,
+      model: "error",
+      citations: [],
+    });
+  }
 
   if (result.usage) await recordUsage(result.usage.promptTokens, result.usage.completionTokens);
 

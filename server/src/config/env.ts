@@ -34,7 +34,7 @@ const schema = z.object({
   AI_PROVIDER: z.enum(["groq", "mock"]).default("mock"),
   GROQ_API_KEY: z.string().optional(),
   GROQ_BASE_URL: z.string().default("https://api.groq.com/openai/v1"),
-  GROQ_TEXT_MODEL: z.string().default("llama-3.3-70b-versatile"),
+  GROQ_TEXT_MODEL: z.string().default("openai/gpt-oss-120b"),
   GROQ_VISION_MODEL: z.string().default("meta-llama/llama-4-scout-17b-16e-instruct"),
   AI_DAILY_BUDGET_USD: z.coerce.number().default(5),
 
