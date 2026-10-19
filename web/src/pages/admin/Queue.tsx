@@ -111,26 +111,28 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
 
   return (
     <div className="mt-4 space-y-4 border-t pt-4" style={{ borderColor: "var(--border)" }}>
-      {att && (
-        <div>
-          <div className="mb-1.5 text-[13px] font-medium" style={{ color: "var(--text-soft)" }}>
-            Attached image {att.status === "UNREADABLE" && <Badge tone="red">Unreadable</Badge>}
+      <div className="flex flex-col gap-4 md:flex-row">
+        {att && (
+          <div className="md:w-60 md:shrink-0">
+            <div className="mb-1.5 text-[13px] font-medium" style={{ color: "var(--text-soft)" }}>
+              Attached image {att.status === "UNREADABLE" && <Badge tone="red">Unreadable</Badge>}
+            </div>
+            <button
+              onClick={() => setLightbox(true)}
+              className="flex h-44 w-full items-center justify-center overflow-hidden rounded-xl"
+              style={{ border: "1px solid var(--border)", background: "var(--surface-2)" }}
+              title="Click to enlarge"
+            >
+              <img src={imgSrc} alt="Student's attachment" className="max-h-full max-w-full object-contain" />
+            </button>
+            {att.ocrText && <p className="mt-2 rounded-lg p-2 text-sm" style={{ background: "var(--surface-2)" }}>OCR: {att.ocrText}</p>}
           </div>
-          <button
-            onClick={() => setLightbox(true)}
-            className="block overflow-hidden rounded-xl"
-            style={{ border: "1px solid var(--border)", background: "var(--surface-2)" }}
-            title="Click to enlarge"
-          >
-            <img src={imgSrc} alt="Student's attachment" className="max-h-56 w-auto object-contain" />
-          </button>
-          {att.ocrText && <p className="mt-2 rounded-lg p-2 text-sm" style={{ background: "var(--surface-2)" }}>OCR: {att.ocrText}</p>}
-        </div>
-      )}
+        )}
 
-      <div>
-        <div className="mb-1.5 text-[13px] font-medium" style={{ color: "var(--text-soft)" }}>AI draft (edit before sending if needed)</div>
-        <Textarea rows={6} value={answer} onChange={(e) => setText(e.target.value)} />
+        <div className="flex-1">
+          <div className="mb-1.5 text-[13px] font-medium" style={{ color: "var(--text-soft)" }}>AI draft (edit before sending if needed)</div>
+          <Textarea rows={6} value={answer} onChange={(e) => setText(e.target.value)} className={att ? "md:h-44" : ""} />
+        </div>
       </div>
 
       {data.citations.length > 0 && (
