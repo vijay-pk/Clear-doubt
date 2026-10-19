@@ -11,7 +11,12 @@ interface QueueDraft {
   _count: { citations: number };
 }
 interface Citation { id: string; snippet: string; score: number; }
-interface DraftDetail extends QueueDraft { citations: Citation[]; questionMessage: QueueDraft["questionMessage"] & { attachments: { id: string; mimeType: string; status: string; ocrText?: string | null }[] }; }
+interface ThreadMsg { id: string; sender: "STUDENT" | "TUTOR" | "SYSTEM"; body: string; createdAt: string; attachments?: { id: string; originalName: string }[]; }
+interface DraftDetail extends QueueDraft {
+  citations: Citation[];
+  questionMessage: QueueDraft["questionMessage"] & { attachments: { id: string; mimeType: string; status: string; ocrText?: string | null }[] };
+  doubt: QueueDraft["doubt"] & { messages: ThreadMsg[] };
+}
 
 export default function Queue() {
   const qc = useQueryClient();
@@ -111,6 +116,27 @@ function DraftEditor({ id, onDone }: { id: string; onDone: () => void }) {
 
   return (
     <div className="mt-4 space-y-4 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+      {data.doubt.messages.length > 1 && (
+        <div>
+          <div className="mb-1.5 text-[13px] font-medium" style={{ color: "var(--text-soft)" }}>
+            Conversation so far (the student replied to your request)
+          </div>
+          <div className="space-y-1.5 rounded-xl p-2" style={{ background: "var(--surface-2)" }}>
+            {data.doubt.messages.map((m) => (
+              <div key={m.id} className={`flex ${m.sender === "STUDENT" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className="max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-1.5 text-sm"
+                  style={m.sender === "STUDENT" ? { background: "var(--color-brand)", color: "#fff" } : { background: "var(--surface)", border: "1px solid var(--border)" }}
+                >
+                  {m.attachments?.length ? <span className="mr-1 opacity-80">📷 </span> : null}
+                  {m.body}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-4 md:flex-row">
         {att && (
           <div className="md:w-60 md:shrink-0">

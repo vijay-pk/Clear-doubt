@@ -10,7 +10,7 @@ import type { RetrievedChunk } from "../ai/types.js";
 export async function buildDraft(questionMessageId: string) {
   const question = await prisma.doubtMessage.findUniqueOrThrow({
     where: { id: questionMessageId },
-    include: { attachments: true, doubt: true },
+    include: { attachments: true, doubt: { include: { messages: { orderBy: { createdAt: "asc" } } } } },
   });
 
   // Combine text question with any extracted image text.
@@ -18,7 +18,15 @@ export async function buildDraft(questionMessageId: string) {
   const imageText = imageAttachment?.ocrText ?? undefined;
   const imageReadable = imageAttachment ? imageAttachment.status !== "UNREADABLE" : undefined;
 
-  const queryText = [question.body, imageText].filter(Boolean).join("\n");
+  // Prior turns in this thread (original question, a tutor clarification, etc.)
+  // so a short follow-up reply is answered — and retrieved — with full context.
+  const all = question.doubt.messages;
+  const idx = all.findIndex((m) => m.id === questionMessageId);
+  const prior = idx > 0 ? all.slice(0, idx) : [];
+  const history = prior.map((m) => ({ sender: m.sender, text: m.body }));
+  const priorStudentText = prior.filter((m) => m.sender === "STUDENT").map((m) => m.body).join("\n");
+
+  const queryText = [priorStudentText, question.body, imageText].filter(Boolean).join("\n");
 
   let context: RetrievedChunk[] = [];
   try {
@@ -43,7 +51,7 @@ export async function buildDraft(questionMessageId: string) {
   const ai = getAI();
   let result;
   try {
-    result = await ai.generateAnswer({ question: question.body, context, imageText, imageReadable });
+    result = await ai.generateAnswer({ question: question.body, context, imageText, imageReadable, history });
   } catch (err) {
     // AI call failed (e.g. a decommissioned model or bad key). Never leave the
     // queue silently empty — create a draft a human can answer, and log the cause.

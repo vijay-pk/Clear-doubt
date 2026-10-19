@@ -46,7 +46,14 @@ export class GroqAIProvider implements AIProvider {
         ? `\n\nText extracted from the student's image (readable=${req.imageReadable !== false}):\n${req.imageText || "(nothing readable)"}`
         : "";
 
-    const user = `Student question:\n${req.question}${imageBlock}\n\nCourse material:\n${contextBlock}`;
+    const historyBlock =
+      req.history && req.history.length
+        ? `Earlier in this conversation (answer the latest student message in this context):\n${req.history
+            .map((t) => `${t.sender === "TUTOR" ? "Tutor" : "Student"}: ${t.text}`)
+            .join("\n")}\n\n`
+        : "";
+
+    const user = `${historyBlock}Student question:\n${req.question}${imageBlock}\n\nCourse material:\n${contextBlock}`;
 
     const { content, usage } = await chat(
       env.GROQ_TEXT_MODEL,

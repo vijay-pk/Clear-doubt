@@ -6,6 +6,11 @@ export interface RetrievedChunk {
   score: number;
 }
 
+export interface ConversationTurn {
+  sender: "STUDENT" | "TUTOR" | "SYSTEM";
+  text: string;
+}
+
 export interface AnswerRequest {
   question: string;
   // Combined retrieved course material (may be empty).
@@ -13,6 +18,9 @@ export interface AnswerRequest {
   // When the question came from an image, the extracted/OCR text (may be empty/unreadable).
   imageText?: string;
   imageReadable?: boolean;
+  // Prior turns in this doubt thread (e.g. the original question + a tutor's
+  // clarification request), so a follow-up reply is answered in context.
+  history?: ConversationTurn[];
 }
 
 export interface AnswerCitation {
