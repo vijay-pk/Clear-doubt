@@ -5,24 +5,23 @@ import { consumeToken } from "../src/auth/authService.js";
 describe("auth & roles", () => {
   beforeEach(resetDb);
 
-  it("1. student can register (unverified, verify token issued)", async () => {
+  it("1. student can register and is active immediately (no verification)", async () => {
     const a = agent();
     const res = await a.post("/api/auth/register").send({ email: "new@test.local", name: "New Student", password: "Password123" });
     expect(res.status).toBe(201);
     const user = await prisma.user.findUnique({ where: { email: "new@test.local" } });
-    expect(user?.emailVerified).toBe(false);
+    expect(user?.emailVerified).toBe(true);
     expect(user?.role).toBe("STUDENT");
     const tok = await prisma.verificationToken.count({ where: { userId: user!.id, purpose: "EMAIL_VERIFY" } });
-    expect(tok).toBe(1);
+    expect(tok).toBe(0);
   });
 
-  it("2. unverified student is blocked from asking doubts", async () => {
+  it("2. students can ask doubts without email verification", async () => {
     await makeStudent("unv@test.local", false);
     const a = agent();
     const { csrf } = await login(a, "unv@test.local", "StudentPass1");
     const res = await a.post("/api/doubts").set("X-CSRF-Token", csrf).field("body", "hi");
-    expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe("email_unverified");
+    expect(res.status).toBe(201);
   });
 
   it("3. seeded admin logs in and is routed to the dashboard", async () => {

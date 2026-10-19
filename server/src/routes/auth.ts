@@ -33,9 +33,8 @@ authRouter.post(
   "/register",
   asyncHandler(async (req, res) => {
     const input = registerSchema.parse(req.body);
-    const { user, verifyToken } = await registerStudent(input);
-    await enqueue("sendEmail", { type: "verify", userId: user.id, token: verifyToken });
-    res.status(201).json({ ok: true, message: "Check your email to verify your account." });
+    await registerStudent(input);
+    res.status(201).json({ ok: true, message: "Account created. You can sign in now." });
   }),
 );
 

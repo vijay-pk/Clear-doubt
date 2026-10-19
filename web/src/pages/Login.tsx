@@ -27,7 +27,7 @@ export default function Login() {
         nav(res.redirect, { replace: true });
       } else {
         await api.post("/auth/register", { email, name, password });
-        toast("Account created. Check your email to verify, then sign in.", "success");
+        toast("Account created. You can sign in now.", "success");
         setMode("login");
         setPassword("");
       }

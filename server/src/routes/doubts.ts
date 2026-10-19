@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma.js";
 import { asyncHandler } from "../http/helpers.js";
-import { requireAuth, requireVerified } from "../middleware/authContext.js";
+import { requireAuth } from "../middleware/authContext.js";
 import { imageUpload, validateImage } from "../middleware/upload.js";
 import { createDoubt, addMessage, listDoubts, getDoubtForStudent, type ImageInput } from "../doubts/doubtService.js";
 import { getStorage } from "../storage/storage.js";
@@ -38,7 +38,6 @@ const createSchema = z.object({ title: z.string().max(120).optional(), body: z.s
 
 doubtsRouter.post(
   "/",
-  requireVerified,
   imageUpload.single("image"),
   asyncHandler(async (req, res) => {
     const studentId = studentOnly(req);
@@ -55,7 +54,6 @@ doubtsRouter.post(
 
 doubtsRouter.post(
   "/:id/messages",
-  requireVerified,
   imageUpload.single("image"),
   asyncHandler(async (req, res) => {
     const studentId = studentOnly(req);

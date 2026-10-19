@@ -12,10 +12,27 @@ export default function Users() {
   const qc = useQueryClient();
   const toast = useToast();
   const isSuper = user?.role === "SUPER_ADMIN";
-  const { data, isLoading } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get<{ users: U[] }>("/admin/users")).users });
+  const [filter, setFilter] = useState<"" | "STUDENT">("");
+  const { data, isLoading } = useQuery({
+    queryKey: ["users", filter],
+    queryFn: async () => (await api.get<{ users: U[] }>(`/admin/users${filter ? `?role=${filter}` : ""}`)).users,
+  });
 
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "ADMIN" });
   const [busy, setBusy] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  async function remove(u: U) {
+    try {
+      await api.del(`/admin/users/${u.id}`);
+      toast("User deleted.", "info");
+      qc.invalidateQueries({ queryKey: ["users"] });
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Delete failed", "error");
+    } finally {
+      setConfirmId(null);
+    }
+  }
 
   async function createAdmin() {
     setBusy(true);
@@ -57,6 +74,15 @@ export default function Users() {
         </Card>
       )}
 
+      <div className="mb-4 flex rounded-full p-1" style={{ background: "var(--surface-2)", width: "fit-content" }}>
+        {([["", "Everyone"], ["STUDENT", "Students"]] as const).map(([val, label]) => (
+          <button key={val} onClick={() => setFilter(val)} className="rounded-full px-4 py-1.5 text-sm font-medium"
+            style={filter === val ? { background: "var(--surface)", boxShadow: "var(--shadow)" } : { color: "var(--text-soft)" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {isLoading ? <Skeleton className="h-40" /> : (
         <div className="space-y-2">
           {data?.map((u) => (
@@ -66,13 +92,23 @@ export default function Users() {
                   <div className="font-medium">{u.name}</div>
                   <div className="text-xs" style={{ color: "var(--text-soft)" }}>{u.email}</div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-3">
                   <Badge tone={u.role === "STUDENT" ? "neutral" : "blue"}>{u.role.toLowerCase()}</Badge>
                   {u.status === "SUSPENDED" && <Badge tone="red">suspended</Badge>}
                   {u.role !== "SUPER_ADMIN" && (
                     <button onClick={() => suspend(u)} className="text-xs" style={{ color: "var(--text-soft)" }}>
                       {u.status === "SUSPENDED" ? "restore" : "suspend"}
                     </button>
+                  )}
+                  {isSuper && u.role !== "SUPER_ADMIN" && u.id !== user?.id && (
+                    confirmId === u.id ? (
+                      <span className="flex items-center gap-2 text-xs">
+                        <button onClick={() => remove(u)} className="font-medium text-red-500">confirm</button>
+                        <button onClick={() => setConfirmId(null)} style={{ color: "var(--text-soft)" }}>cancel</button>
+                      </span>
+                    ) : (
+                      <button onClick={() => setConfirmId(u.id)} className="text-xs text-red-500">delete</button>
+                    )
                   )}
                 </div>
               </div>

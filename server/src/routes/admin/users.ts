@@ -71,6 +71,27 @@ usersRouter.post(
   }),
 );
 
+// Permanently delete a user (super admin only). Cascades their doubts, messages,
+// attachments and sessions. Cannot delete a super admin or yourself.
+usersRouter.delete(
+  "/users/:id",
+  requireRole("SUPER_ADMIN"),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id);
+    if (id === req.user!.id) throw badRequest("You can't delete your own account.", "self_delete");
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) throw notFound("User not found");
+    if (user.role === "SUPER_ADMIN") throw badRequest("Cannot delete a super admin.", "protected");
+    try {
+      await prisma.user.delete({ where: { id } });
+    } catch {
+      throw badRequest("Can't delete this user — they may own course documents or approved answers.", "has_dependencies");
+    }
+    await writeAudit({ actorId: req.user!.id, action: "user.delete", entityType: "User", entityId: id, meta: { email: user.email, role: user.role } });
+    res.json({ ok: true });
+  }),
+);
+
 // Reset another user's password — SUPER_ADMIN only (admin credentials are
 // changed from the dashboard, never self-service by students for admins).
 usersRouter.post(

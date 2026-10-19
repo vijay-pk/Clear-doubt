@@ -59,12 +59,11 @@ export async function registerStudent(input: { email: string; name: string; pass
       name,
       passwordHash: await hashPassword(input.password),
       role: "STUDENT",
-      emailVerified: false,
+      emailVerified: true, // email verification is not required
     },
   });
-  const token = await issueToken(user.id, "EMAIL_VERIFY");
   await writeAudit({ actorId: user.id, action: "student.register", entityType: "User", entityId: user.id });
-  return { user, verifyToken: token };
+  return { user };
 }
 
 export async function authenticate(email: string, password: string) {

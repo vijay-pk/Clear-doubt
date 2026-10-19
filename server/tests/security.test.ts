@@ -64,6 +64,19 @@ describe("security & controls", () => {
     expect(draft.decidedById).toBeNull();
   });
 
+  it("super admin can delete a student; a plain admin cannot", async () => {
+    const student = await makeStudent("del@test.local", true);
+    const sup = await loginAsAdmin("SUPER_ADMIN");
+    const r = await sup.a.delete(`/api/admin/users/${student.user.id}`).set("X-CSRF-Token", sup.csrf);
+    expect(r.status).toBe(200);
+    expect(await prisma.user.findUnique({ where: { id: student.user.id } })).toBeNull();
+
+    const s2 = await makeStudent("del2@test.local", true);
+    const adm = await loginAsAdmin("ADMIN");
+    const r2 = await adm.a.delete(`/api/admin/users/${s2.user.id}`).set("X-CSRF-Token", adm.csrf);
+    expect(r2.status).toBe(403);
+  });
+
   it("admin settings never leak secrets", async () => {
     const admin = await loginAsAdmin();
     const res = await admin.a.get("/api/admin/settings");

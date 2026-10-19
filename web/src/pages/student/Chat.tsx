@@ -20,7 +20,6 @@ const statusLabel: Record<string, string> = {
 
 export default function Chat() {
   const { user, logout } = useAuth();
-  const toast = useToast();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<string | "new" | null>(null);
   const [mobileThread, setMobileThread] = useState(false);
@@ -35,11 +34,6 @@ export default function Chat() {
     if (selected === null && list && list.length) setSelected(list[0].id);
   }, [list, selected]);
 
-  async function resendVerification() {
-    await api.post("/auth/resend-verification", { email: user!.email }).catch(() => {});
-    toast("Verification email sent.", "success");
-  }
-
   return (
     <div className="mx-auto flex h-full max-w-5xl flex-col">
       <header className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -52,13 +46,6 @@ export default function Chat() {
           <Button variant="ghost" onClick={() => logout()}>Sign out</Button>
         </div>
       </header>
-
-      {!user?.emailVerified && (
-        <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm" style={{ background: "var(--surface-2)", borderBottom: "1px solid var(--border)" }}>
-          <span>Verify your email to start asking doubts.</span>
-          <button onClick={resendVerification} className="font-medium" style={{ color: "var(--color-brand)" }}>Resend link</button>
-        </div>
-      )}
 
       <div className="grid flex-1 overflow-hidden md:grid-cols-[300px_1fr]">
         {/* Doubt list */}
