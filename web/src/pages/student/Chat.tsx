@@ -22,7 +22,8 @@ export default function Chat() {
   const { user, logout } = useAuth();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<string | "new" | null>(null);
-  const [mobileThread, setMobileThread] = useState(false);
+  // Land directly in the chat (composer visible) like a messaging app.
+  const [mobileThread, setMobileThread] = useState(true);
 
   const { data: list, isLoading } = useQuery({
     queryKey: ["doubts"],
@@ -31,7 +32,8 @@ export default function Chat() {
   });
 
   useEffect(() => {
-    if (selected === null && list && list.length) setSelected(list[0].id);
+    // Default to the most recent doubt, or a ready-to-type composer when there are none.
+    if (selected === null && list) setSelected(list.length ? list[0]!.id : "new");
   }, [list, selected]);
 
   return (
@@ -70,17 +72,15 @@ export default function Chat() {
           )}
         </aside>
 
-        {/* Thread */}
+        {/* Thread — always shows a composer; defaults to a new-doubt composer. */}
         <section className={`flex-col overflow-hidden ${mobileThread ? "flex" : "hidden"} md:flex`}>
-          {selected === "new" ? (
+          {selected && selected !== "new" ? (
+            <Thread doubtId={selected} onBack={() => setMobileThread(false)} />
+          ) : (
             <NewDoubt
               onBack={() => setMobileThread(false)}
               onCreated={(id) => { qc.invalidateQueries({ queryKey: ["doubts"] }); setSelected(id); }}
             />
-          ) : selected ? (
-            <Thread doubtId={selected} onBack={() => setMobileThread(false)} />
-          ) : (
-            <EmptyState icon="👋" title="Pick a doubt or start a new one" />
           )}
         </section>
       </div>
