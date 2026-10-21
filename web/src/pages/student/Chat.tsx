@@ -5,6 +5,7 @@ import { useAuth } from "../../lib/auth";
 import { useToast } from "../../lib/toast";
 import { useDropzone } from "../../lib/useDropzone";
 import { Button, Textarea, Badge, Spinner, EmptyState, Skeleton } from "../../components/ui";
+import AccountSettings from "../../components/AccountSettings";
 
 interface DoubtSummary { id: string; title: string; status: string; updatedAt: string; }
 interface Attachment { id: string; mimeType: string; originalName: string; status: string; }
@@ -20,6 +21,7 @@ const statusLabel: Record<string, string> = {
 
 export default function Chat() {
   const { user, logout } = useAuth();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const qc = useQueryClient();
   const [selected, setSelected] = useState<string | "new" | null>(null);
   // Land directly in the chat (composer visible) like a messaging app.
@@ -45,11 +47,13 @@ export default function Chat() {
         </div>
         <div className="flex items-center gap-3">
           <span className="hidden text-sm sm:inline" style={{ color: "var(--text-soft)" }}>{user?.name}</span>
+          <Button variant="ghost" onClick={() => setSettingsOpen(true)}>Settings</Button>
           <Button variant="ghost" onClick={() => logout()}>Sign out</Button>
         </div>
       </header>
 
       {user && user.role === "STUDENT" && !user.phone && <WhatsAppNumberBanner />}
+      {settingsOpen && <AccountSettings onClose={() => setSettingsOpen(false)} />}
 
       <div className="grid flex-1 overflow-hidden md:grid-cols-[300px_1fr]">
         {/* Doubt list */}

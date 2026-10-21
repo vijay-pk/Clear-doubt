@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../../lib/auth";
 import { Button } from "../../components/ui";
+import AccountSettings from "../../components/AccountSettings";
 
 const nav = [
   { to: "/admin", label: "Overview", icon: "◎", end: true },
@@ -14,6 +16,7 @@ const nav = [
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
+  const [accountOpen, setAccountOpen] = useState(false);
   return (
     <div className="flex h-full flex-col md:flex-row">
       <aside className="hidden w-60 shrink-0 flex-col p-4 md:flex" style={{ borderRight: "1px solid var(--border)" }}>
@@ -40,6 +43,7 @@ export default function AdminLayout() {
             <div className="font-medium">{user?.name}</div>
             <div className="text-xs" style={{ color: "var(--text-soft)" }}>{user?.role}</div>
           </div>
+          <Button variant="ghost" className="w-full justify-start" onClick={() => setAccountOpen(true)}>My account</Button>
           <Button variant="ghost" className="w-full justify-start" onClick={() => logout()}>Sign out</Button>
         </div>
       </aside>
@@ -47,8 +51,13 @@ export default function AdminLayout() {
       {/* Mobile top bar */}
       <header className="flex items-center justify-between px-4 py-3 md:hidden" style={{ borderBottom: "1px solid var(--border)" }}>
         <span className="font-semibold">Adways Admin</span>
-        <Button variant="ghost" onClick={() => logout()}>Sign out</Button>
+        <div className="flex items-center">
+          <Button variant="ghost" onClick={() => setAccountOpen(true)}>My account</Button>
+          <Button variant="ghost" onClick={() => logout()}>Sign out</Button>
+        </div>
       </header>
+
+      {accountOpen && <AccountSettings onClose={() => setAccountOpen(false)} />}
 
       <main className="flex-1 overflow-y-auto p-4 pb-24 md:p-8">
         <Outlet />

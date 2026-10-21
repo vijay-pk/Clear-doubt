@@ -93,6 +93,46 @@ export async function changeOwnPassword(userId: string, currentPassword: string,
   await writeAudit({ actorId: userId, action: "user.password_change", entityType: "User", entityId: userId });
 }
 
+// Self-service profile update (any signed-in user). Changing the sign-in email
+// requires the current password so an unattended session can't hijack the account.
+export async function updateOwnProfile(
+  userId: string,
+  input: { name?: string; email?: string; currentPassword?: string },
+) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const data: { name?: string; email?: string } = {};
+
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (name.length < 2) throw badRequest("Please enter your name.", "invalid_name");
+    if (name !== user.name) data.name = name;
+  }
+
+  if (input.email !== undefined) {
+    const email = normalizeEmail(input.email);
+    if (!EMAIL_RE.test(email)) throw badRequest("Enter a valid email address.", "invalid_email");
+    if (email !== user.email) {
+      if (!input.currentPassword || !(await verifyPassword(user.passwordHash, input.currentPassword))) {
+        throw unauthorized("Enter your current password to change your email.", "bad_credentials");
+      }
+      const taken = await prisma.user.findUnique({ where: { email } });
+      if (taken) throw conflict("An account with this email already exists.", "email_taken");
+      data.email = email;
+    }
+  }
+
+  if (Object.keys(data).length === 0) return user;
+  const updated = await prisma.user.update({ where: { id: userId }, data });
+  await writeAudit({
+    actorId: userId,
+    action: "user.profile_update",
+    entityType: "User",
+    entityId: userId,
+    meta: { fields: Object.keys(data) },
+  });
+  return updated;
+}
+
 export async function markEmailVerified(userId: string) {
   await prisma.user.update({ where: { id: userId }, data: { emailVerified: true } });
   await writeAudit({ actorId: userId, action: "student.email_verified", entityType: "User", entityId: userId });

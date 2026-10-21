@@ -5,6 +5,7 @@ import { asyncHandler, clientIp } from "../http/helpers.js";
 import { authLimiter } from "../middleware/rateLimit.js";
 import { requireAuth } from "../middleware/authContext.js";
 import {
+  updateOwnProfile,
   registerStudent,
   authenticate,
   normalizeEmail,
@@ -129,7 +130,24 @@ authRouter.get(
   }),
 );
 
-// Student sets/updates their own WhatsApp number (used to deliver tutor answers).
+// Any signed-in user updates their own name / email.
+authRouter.post(
+  "/profile",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const input = z
+      .object({
+        name: z.string().max(80).optional(),
+        email: z.string().max(200).optional(),
+        currentPassword: z.string().max(200).optional(),
+      })
+      .parse(req.body);
+    const user = await updateOwnProfile(req.user!.id, input);
+    res.json({ ok: true, user: { name: user.name, email: user.email } });
+  }),
+);
+
+// Any signed-in user sets/updates their own WhatsApp number (used to deliver tutor answers).
 authRouter.post(
   "/phone",
   requireAuth,
