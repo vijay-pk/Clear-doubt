@@ -3,6 +3,7 @@ import { deliverDraft } from "../../responses/deliveryService.js";
 import { finalText } from "../../responses/approvalService.js";
 import { sendWhatsApp } from "../../messaging/whatsappSend.js";
 import { NotOnWhatsAppError } from "../../messaging/whatsappWeb.js";
+import { formatWhatsAppAnswer } from "../../messaging/whatsappFormat.js";
 import { getSettings } from "../../settings/settingsService.js";
 
 type Payload = { draftId: string } | { whatsappDeliveryLogId: string };
@@ -20,7 +21,7 @@ export async function deliverMessage(payloadRaw: unknown): Promise<void> {
   if (!log || log.status === "SENT") return;
   const draft = await prisma.responseDraft.findUnique({
     where: { id: log.draftId },
-    include: { doubt: { include: { student: true } } },
+    include: { doubt: { include: { student: true } }, questionMessage: true },
   });
   if (!draft) return;
   const phone = draft.doubt.student.phone;
@@ -32,7 +33,12 @@ export async function deliverMessage(payloadRaw: unknown): Promise<void> {
   await prisma.deliveryLog.update({ where: { id: log.id }, data: { status: "SENDING", attempts: { increment: 1 } } });
   try {
     const settings = await getSettings();
-    const res = await sendWhatsApp(phone, finalText(draft), settings);
+    const text = formatWhatsAppAnswer({
+      question: draft.questionMessage?.body || draft.doubt.title,
+      answer: finalText(draft),
+      isClarification: draft.isClarification,
+    });
+    const res = await sendWhatsApp(phone, text, settings);
     await prisma.deliveryLog.update({
       where: { id: log.id },
       data: { status: "SENT", sentAt: new Date(), providerMessageId: res.id, error: null },
