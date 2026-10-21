@@ -2,6 +2,7 @@ import { prisma } from "../../db/prisma.js";
 import { deliverDraft } from "../../responses/deliveryService.js";
 import { finalText } from "../../responses/approvalService.js";
 import { sendWhatsApp } from "../../messaging/whatsappSend.js";
+import { NotOnWhatsAppError } from "../../messaging/whatsappWeb.js";
 import { getSettings } from "../../settings/settingsService.js";
 
 type Payload = { draftId: string } | { whatsappDeliveryLogId: string };
@@ -37,6 +38,11 @@ export async function deliverMessage(payloadRaw: unknown): Promise<void> {
       data: { status: "SENT", sentAt: new Date(), providerMessageId: res.id, error: null },
     });
   } catch (err) {
+    if (err instanceof NotOnWhatsAppError) {
+      // Permanent: the student's number has no WhatsApp account. Don't retry.
+      await prisma.deliveryLog.update({ where: { id: log.id }, data: { status: "SKIPPED", error: err.message } });
+      return;
+    }
     await prisma.deliveryLog.update({
       where: { id: log.id },
       data: { status: "FAILED", error: (err instanceof Error ? err.message : String(err)).slice(0, 500) },

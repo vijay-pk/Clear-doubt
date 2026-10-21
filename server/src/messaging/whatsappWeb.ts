@@ -25,9 +25,13 @@ interface WaSocket {
   user?: { id: string } | null;
   ev: { on(event: string, listener: (arg: never) => void): void };
   sendMessage(jid: string, content: { text: string }): Promise<{ key?: { id?: string | null } } | undefined>;
+  onWhatsApp(...jids: string[]): Promise<Array<{ exists: boolean; jid: string }> | undefined>;
   logout(): Promise<void>;
   end(err: Error | undefined): void;
 }
+
+// The recipient number has no WhatsApp account — retrying will never help.
+export class NotOnWhatsAppError extends Error {}
 
 class WhatsAppWebManager {
   private sock: WaSocket | null = null;
@@ -91,8 +95,11 @@ class WhatsAppWebManager {
     if (!this.sock || this.state !== "connected") throw new Error("WhatsApp Web is not connected");
     const digits = phoneE164.replace(/[^\d]/g, "");
     if (!digits) throw new Error("Invalid phone number");
-    const jid = `${digits}@s.whatsapp.net`;
-    const sent = await this.sock.sendMessage(jid, { text: text.slice(0, 4096) });
+    // WhatsApp accepts sends to numbers without an account and silently drops
+    // them, so confirm the number is on WhatsApp first (and use its real JID).
+    const [hit] = (await this.sock.onWhatsApp(digits)) ?? [];
+    if (!hit?.exists) throw new NotOnWhatsAppError(`+${digits} is not registered on WhatsApp`);
+    const sent = await this.sock.sendMessage(hit.jid, { text: text.slice(0, 4096) });
     const id = sent?.key?.id;
     if (!id) throw new Error("WhatsApp Web did not return a message id");
     return { id };
