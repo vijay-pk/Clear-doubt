@@ -1,0 +1,30 @@
+# One-off: upgrade Baileys (WhatsApp Web) and regenerate package-lock.json.
+# Builds the whole app first; only commits if the build passes. Removes itself.
+name: Upgrade Baileys
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/upgrade-baileys.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Upgrade Baileys to 6.7.24
+        run: npm install @whiskeysockets/baileys@6.7.24 --workspace server --save-exact --no-audit --no-fund
+      - name: Build (server + web, includes type-check)
+        run: npm run build
+      - name: Commit lockfile and remove this workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -q .github/workflows/upgrade-baileys.yml
+          git add package.json package-lock.json server/package.json
+          git commit -m "Upgrade Baileys to 6.7.24 (WhatsApp delivery fix, security advisory GHSA-qvv5-jq5g-4cgg)"
+          git push
