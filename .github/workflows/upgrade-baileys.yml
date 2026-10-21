@@ -17,7 +17,10 @@ jobs:
         with:
           node-version: 20
       - name: Upgrade Baileys to 6.7.24
-        run: npm install @whiskeysockets/baileys@6.7.24 --workspace server --save-exact --no-audit --no-fund
+        run: |
+          npm install @whiskeysockets/baileys@6.7.24 --workspace server --save-exact --no-audit --no-fund
+          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
       - name: Build (server + web, includes type-check)
         shell: bash
         run: |
