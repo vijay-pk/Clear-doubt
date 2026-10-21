@@ -20,7 +20,7 @@
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
     "@prisma/client": "^6.19.3",
-    "@whiskeysockets/baileys": "6.7.9",
+    "@whiskeysockets/baileys": "6.7.24",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
