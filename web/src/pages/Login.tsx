@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type User } from "../lib/api";
 import { useToast } from "../lib/toast";
-import { Button, Input, Field, Card } from "../components/ui";
+import { Button, Input, PasswordInput, Field, Card } from "../components/ui";
 
 export default function Login() {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -71,7 +71,7 @@ export default function Login() {
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" autoComplete="email" />
             </Field>
             <Field label="Password">
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder={mode === "register" ? "At least 10 characters" : "Your password"} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required placeholder={mode === "register" ? "At least 10 characters" : "Your password"} autoComplete={mode === "login" ? "current-password" : "new-password"} />
             </Field>
             <Button type="submit" loading={busy} className="w-full">{mode === "login" ? "Sign in" : "Create account"}</Button>
           </form>

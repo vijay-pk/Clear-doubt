@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { useToast } from "../lib/toast";
-import { Card, Input, Field, Button } from "../components/ui";
+import { Card, PasswordInput, Field, Button } from "../components/ui";
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
@@ -35,7 +35,7 @@ export default function ResetPassword() {
         ) : (
           <form onSubmit={submit} className="space-y-3">
             <Field label="New password">
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="At least 10 characters" autoComplete="new-password" />
+              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="At least 10 characters" autoComplete="new-password" />
             </Field>
             <Button type="submit" loading={busy} className="w-full">Update password</Button>
           </form>

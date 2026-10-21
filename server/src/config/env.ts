@@ -62,6 +62,7 @@ const schema = z.object({
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_APP_SECRET: z.string().optional(),
   // WhatsApp Web (Baileys, QR-linked device). Session dir holds credentials.
+  // Deprecated: WhatsApp Web sessions are now stored in the database (WhatsAppAuth).
   WHATSAPP_WEB_SESSION_DIR: z.string().default("./wa-session"),
 
   // Storage for uploads (private)

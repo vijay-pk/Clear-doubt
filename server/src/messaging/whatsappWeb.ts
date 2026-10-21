@@ -1,17 +1,24 @@
-import { mkdir, rm } from "node:fs/promises";
-import { resolve } from "node:path";
 import QRCode from "qrcode";
-import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
+import { getSettings } from "../settings/settingsService.js";
+import {
+  clearStoredWhatsAppSession,
+  hasStoredWhatsAppSession,
+  useDbAuthState,
+  type BaileysAuthHelpers,
+} from "./whatsappWebAuthStore.js";
 
 // Outbound-only WhatsApp Web sender (Baileys, QR-linked device). Students use the
 // web portal, so this only SENDS tutor answers — it does not read inbound messages.
 // Unofficial automation: may violate WhatsApp's terms and get the number banned.
-// Session files in WHATSAPP_WEB_SESSION_DIR are credentials — never logged or exposed.
+// The linked-device session is stored in the database (WhatsAppAuth table) so the
+// login survives restarts/redeploys; it is credentials — never logged or exposed.
+// It is removed only by an admin logout or by unlinking the device on the phone.
 
 type WebState = "disconnected" | "connecting" | "qr" | "connected" | "error";
 const LOGGED_OUT = 401;
 const RESTART_REQUIRED = 515;
+const CONNECTION_REPLACED = 440; // another server instance took over (e.g. during a deploy)
 
 // Loose socket surface so we don't hard-depend on Baileys types at the call sites.
 interface WaSocket {
@@ -31,9 +38,6 @@ class WhatsAppWebManager {
   private stopping = false;
   private retries = 0;
   private reconnectTimer: NodeJS.Timeout | null = null;
-  private get sessionDir() {
-    return resolve(env.WHATSAPP_WEB_SESSION_DIR);
-  }
 
   isConnected() {
     return this.state === "connected" && this.sock !== null;
@@ -47,8 +51,17 @@ class WhatsAppWebManager {
   async connect(): Promise<void> {
     if (this.sock) return;
     this.stopping = false;
-    await mkdir(this.sessionDir, { recursive: true, mode: 0o700 });
     await this.start();
+  }
+
+  // On server start: reconnect automatically if a session is already linked, so
+  // no QR scan is needed after a restart or redeploy.
+  async resumeIfLinked(): Promise<void> {
+    const settings = await getSettings();
+    if (settings.whatsappProvider !== "web" || !settings.whatsappWebRiskAck) return;
+    if (!(await hasStoredWhatsAppSession())) return;
+    logger.info("Resuming saved WhatsApp Web session");
+    await this.connect();
   }
 
   async disconnect(): Promise<void> {
@@ -91,10 +104,10 @@ class WhatsAppWebManager {
     try {
       const baileys = await import("@whiskeysockets/baileys");
       const { default: pino } = await import("pino");
-      const { state, saveCreds } = await baileys.useMultiFileAuthState(this.sessionDir);
+      const { state, saveCreds } = await useDbAuthState(baileys as unknown as BaileysAuthHelpers);
       const latest = await baileys.fetchLatestBaileysVersion().catch(() => null);
       sock = baileys.makeWASocket({
-        auth: state,
+        auth: state as never,
         logger: pino({ level: "silent" }) as never, // Baileys logs can contain keys/payloads
         browser: baileys.Browsers.appropriate("Adways Doubts"),
         markOnlineOnConnect: false,
@@ -136,6 +149,13 @@ class WhatsAppWebManager {
         this.setState("disconnected", "Device unlinked. Connect again to scan a new QR code.");
         return;
       }
+      if (code === CONNECTION_REPLACED) {
+        // A newer server instance is now using this session; let it keep the link.
+        this.stopping = true;
+        this.clearTimer();
+        this.setState("disconnected", "Session taken over by another server instance.");
+        return;
+      }
       if (this.stopping) return;
       const delay = code === RESTART_REQUIRED ? 0 : Math.min(2000 * 2 ** this.retries, 60_000);
       this.retries++;
@@ -151,7 +171,7 @@ class WhatsAppWebManager {
   private async clearSession(): Promise<void> {
     this.selfId = null;
     this.qrRaw = null;
-    await rm(this.sessionDir, { recursive: true, force: true }).catch((err) =>
+    await clearStoredWhatsAppSession().catch((err) =>
       logger.error({ err: err instanceof Error ? err.message : String(err) }, "could not delete WhatsApp Web session"),
     );
   }

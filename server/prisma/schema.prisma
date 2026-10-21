@@ -328,3 +328,12 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
 }
+
+// WhatsApp Web (Baileys) linked-device session, stored in the DB so the login
+// survives restarts/redeploys. Rows are credentials: never logged or exposed.
+// Cleared only when an admin logs out or the device is unlinked from the phone.
+model WhatsAppAuth {
+  id        String   @id
+  data      String
+  updatedAt DateTime @updatedAt
+}
