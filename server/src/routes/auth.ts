@@ -19,6 +19,7 @@ import { enqueue } from "../jobs/queue.js";
 import { badRequest } from "../lib/errors.js";
 import { env } from "../config/env.js";
 import { writeAudit } from "../audit/audit.js";
+import { normalizePhone } from "../lib/phone.js";
 
 export const authRouter = Router();
 authRouter.use(authLimiter);
@@ -27,6 +28,7 @@ const registerSchema = z.object({
   email: z.string().email(),
   name: z.string().min(2).max(80),
   password: z.string().min(10).max(200),
+  phone: z.string().max(30).optional(),
 });
 
 authRouter.post(
@@ -122,7 +124,22 @@ authRouter.get(
   "/me",
   requireAuth,
   asyncHandler(async (req, res) => {
-    res.json({ user: req.user, csrfToken: req.csrfSecret });
+    const row = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { phone: true } });
+    res.json({ user: { ...req.user, phone: row?.phone ?? null }, csrfToken: req.csrfSecret });
+  }),
+);
+
+// Student sets/updates their own WhatsApp number (used to deliver tutor answers).
+authRouter.post(
+  "/phone",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { phone: raw } = z.object({ phone: z.string().max(30) }).parse(req.body);
+    const phone = normalizePhone(raw);
+    if (!phone) throw badRequest("Enter a valid WhatsApp number with country code, e.g. +91 98765 43210.", "invalid_phone");
+    await prisma.user.update({ where: { id: req.user!.id }, data: { phone } });
+    await writeAudit({ actorId: req.user!.id, action: "user.phone_update", entityType: "User", entityId: req.user!.id });
+    res.json({ ok: true, phone });
   }),
 );
 

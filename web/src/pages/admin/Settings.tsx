@@ -12,7 +12,7 @@ interface Settings {
 }
 interface Integrations {
   aiProvider: string; embeddingProvider: string; emailProvider: string; emailConfigured: boolean;
-  whatsappEnabled: boolean; whatsappConfigured: boolean; storageProvider: string;
+  whatsappEnabled: boolean; whatsappConfigured: boolean; whatsappChannelAvailable?: boolean; storageProvider: string;
 }
 
 const modes: { id: Mode; title: string; desc: string }[] = [
@@ -100,7 +100,7 @@ export default function Settings() {
         <div className="mb-3 font-medium">Default delivery channels</div>
         {(["WEBSITE", "EMAIL", "WHATSAPP"] as const).map((ch) => {
           const on = s.defaultDeliveryChannels.includes(ch);
-          const disabled = ch === "WHATSAPP" && !i.whatsappConfigured;
+          const disabled = ch === "WHATSAPP" && !(i.whatsappChannelAvailable ?? i.whatsappConfigured);
           return (
             <Toggle key={ch} label={ch[0] + ch.slice(1).toLowerCase() + (disabled ? " (configure first)" : "")} value={on} disabled={disabled}
               onChange={(v) => patch({ defaultDeliveryChannels: v ? [...s.defaultDeliveryChannels, ch] : s.defaultDeliveryChannels.filter((c) => c !== ch) })} />

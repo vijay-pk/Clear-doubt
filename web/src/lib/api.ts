@@ -51,4 +51,5 @@ export interface User {
   name: string;
   role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
   emailVerified: boolean;
+  phone?: string | null; // WhatsApp number (E.164), students
 }

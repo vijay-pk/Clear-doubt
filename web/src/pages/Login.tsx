@@ -10,6 +10,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -26,7 +27,7 @@ export default function Login() {
         qc.setQueryData(["me"], res.user);
         nav(res.redirect, { replace: true });
       } else {
-        await api.post("/auth/register", { email, name, password });
+        await api.post("/auth/register", { email, name, password, phone });
         toast("Account created. You can sign in now.", "success");
         setMode("login");
         setPassword("");
@@ -70,6 +71,11 @@ export default function Login() {
             <Field label="Email">
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" autoComplete="email" />
             </Field>
+            {mode === "register" && (
+              <Field label="WhatsApp number">
+                <Input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+91 98765 43210" autoComplete="tel" />
+              </Field>
+            )}
             <Field label="Password">
               <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required placeholder={mode === "register" ? "At least 10 characters" : "Your password"} autoComplete={mode === "login" ? "current-password" : "new-password"} />
             </Field>

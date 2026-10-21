@@ -5,7 +5,7 @@ import { enqueue } from "../jobs/queue.js";
 import { writeAudit } from "../audit/audit.js";
 import { logger } from "../lib/logger.js";
 import { finalText } from "./approvalService.js";
-import { whatsappReady } from "../messaging/whatsappSend.js";
+import { whatsappEnabled } from "../messaging/whatsappSend.js";
 
 // Deliver an APPROVED draft across the configured channels. Idempotent: the
 // APPROVED->SENDING claim runs once; each channel has its own DeliveryLog keyed
@@ -40,7 +40,7 @@ export async function deliverDraft(draftId: string): Promise<void> {
   const channels = new Set<DeliveryChannel>(["WEBSITE"]); // portal always
   for (const ch of settings.defaultDeliveryChannels) {
     if (ch === "EMAIL" && student.email) channels.add("EMAIL");
-    if (ch === "WHATSAPP" && whatsappReady(settings) && student.phone) channels.add("WHATSAPP");
+    if (ch === "WHATSAPP" && whatsappEnabled(settings) && student.phone) channels.add("WHATSAPP");
   }
 
   // Website: post the tutor message into the thread (inline, synchronous).
@@ -60,7 +60,9 @@ export async function deliverDraft(draftId: string): Promise<void> {
     if (log.status === "PENDING") {
       if (ch === "EMAIL") await enqueue("sendEmail", { deliveryLogId: log.id }, { dedupeKey: `email:${log.id}` });
       // WhatsApp delivered via deliverMessage-style job (see whatsapp handler wiring)
-      if (ch === "WHATSAPP") await enqueue("deliverMessage", { whatsappDeliveryLogId: log.id }, { dedupeKey: `wa:${log.id}` });
+      // Generous retries (backoff caps at 60s ≈ 30 min total) so a WhatsApp Web
+      // reconnect or server restart delays the message instead of losing it.
+      if (ch === "WHATSAPP") await enqueue("deliverMessage", { whatsappDeliveryLogId: log.id }, { dedupeKey: `wa:${log.id}`, maxAttempts: 30 });
     }
   }
 

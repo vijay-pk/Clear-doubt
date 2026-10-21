@@ -3,6 +3,7 @@ import { prisma } from "../db/prisma.js";
 import { hashPassword, verifyPassword, generateToken, sha256 } from "../lib/crypto.js";
 import { badRequest, conflict, unauthorized } from "../lib/errors.js";
 import { writeAudit } from "../audit/audit.js";
+import { normalizePhone } from "../lib/phone.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -43,12 +44,14 @@ export async function consumeToken(token: string, purpose: TokenPurpose) {
   return row.userId;
 }
 
-export async function registerStudent(input: { email: string; name: string; password: string }) {
+export async function registerStudent(input: { email: string; name: string; password: string; phone?: string }) {
   const email = normalizeEmail(input.email);
   if (!EMAIL_RE.test(email)) throw badRequest("Enter a valid email address.", "invalid_email");
   const name = input.name.trim();
   if (name.length < 2) throw badRequest("Please enter your name.", "invalid_name");
   validatePasswordStrength(input.password);
+  const phone = input.phone?.trim() ? normalizePhone(input.phone) : null;
+  if (input.phone?.trim() && !phone) throw badRequest("Enter a valid WhatsApp number with country code, e.g. +91 98765 43210.", "invalid_phone");
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw conflict("An account with this email already exists.", "email_taken");
@@ -59,6 +62,7 @@ export async function registerStudent(input: { email: string; name: string; pass
       name,
       passwordHash: await hashPassword(input.password),
       role: "STUDENT",
+      phone,
       emailVerified: true, // email verification is not required
     },
   });

@@ -49,6 +49,8 @@ export default function Chat() {
         </div>
       </header>
 
+      {user && user.role === "STUDENT" && !user.phone && <WhatsAppNumberBanner />}
+
       <div className="grid flex-1 overflow-hidden md:grid-cols-[300px_1fr]">
         {/* Doubt list */}
         <aside className={`flex-col overflow-y-auto p-3 ${mobileThread ? "hidden" : "flex"} md:flex`} style={{ borderRight: "1px solid var(--border)" }}>
@@ -85,6 +87,50 @@ export default function Chat() {
         </section>
       </div>
     </div>
+  );
+}
+
+// Asks students without a WhatsApp number on file to add one, so tutor answers
+// can also be delivered to them on WhatsApp.
+function WhatsAppNumberBanner() {
+  const { refresh } = useAuth();
+  const toast = useToast();
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.post("/auth/phone", { phone });
+      toast("WhatsApp number saved. Answers will also reach you on WhatsApp.", "success");
+      refresh();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Could not save the number", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={save} className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm" style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}>
+      <span className="min-w-[200px] flex-1" style={{ color: "var(--text-soft)" }}>
+        Add your WhatsApp number to get tutor answers on WhatsApp too.
+      </span>
+      <input
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        required
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="+91 98765 43210"
+        aria-label="WhatsApp number"
+        className="w-48 rounded-xl px-3 py-2 text-[15px] outline-none focus:ring-2 focus:ring-[var(--color-brand)]/40"
+        style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}
+      />
+      <Button type="submit" loading={busy}>Save</Button>
+    </form>
   );
 }
 

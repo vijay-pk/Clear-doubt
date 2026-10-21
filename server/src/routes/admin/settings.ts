@@ -5,6 +5,7 @@ import { asyncHandler } from "../../http/helpers.js";
 import { getSettings, updateSettings } from "../../settings/settingsService.js";
 import { getTodayCost } from "../../ai/budget.js";
 import { env } from "../../config/env.js";
+import { whatsappEnabled } from "../../messaging/whatsappSend.js";
 
 export const settingsRouter = Router();
 
@@ -22,6 +23,8 @@ settingsRouter.get(
         emailConfigured: env.EMAIL_PROVIDER !== "console",
         whatsappEnabled: env.WHATSAPP_ENABLED,
         whatsappConfigured: Boolean(env.WHATSAPP_CLOUD_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID),
+        // WhatsApp delivery can be switched on with either backend (Cloud API or WhatsApp Web).
+        whatsappChannelAvailable: whatsappEnabled(settings),
         storageProvider: env.STORAGE_PROVIDER,
       },
     });
