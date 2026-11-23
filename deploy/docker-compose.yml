@@ -1,0 +1,40 @@
+# VPS deployment: the app container + Caddy (auto-HTTPS reverse proxy).
+# Data lives in Supabase (DB + storage), so this is stateless — no data is lost
+# moving here. Run from the deploy/ directory: `docker compose up -d --build`.
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env # create this from .env.production.example (NOT committed)
+    expose:
+      - "3001"
+    volumes:
+      # Persist the WhatsApp Web (Baileys) QR session across restarts.
+      - wa_session:/app/server/wa-session
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  wa_session:
+  caddy_data:
+  caddy_config:

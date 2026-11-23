@@ -1,0 +1,6 @@
+# Caddy auto-provisions and renews HTTPS (Let's Encrypt) for this domain and
+# proxies to the app container. Change the domain if yours differs.
+doubts.adwaysacademy.com {
+	encode zstd gzip
+	reverse_proxy app:3001
+}
