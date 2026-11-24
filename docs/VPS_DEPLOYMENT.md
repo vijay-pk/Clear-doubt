@@ -229,3 +229,75 @@ cd deploy && docker compose -f docker-compose.cyberpanel.yml up -d --build
   ```bash
   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
   ```
+
+---
+
+## Oracle Cloud — Always Free VM
+
+A plain Ubuntu VM with no control panel, so we use the **Caddy** compose
+(`deploy/docker-compose.yml`), which owns 80/443 and auto-issues HTTPS. Data still
+lives in Supabase — nothing is migrated, nothing is lost. Always-on: no Render-style
+suspension.
+
+### 1. Create the instance
+Oracle Cloud Console → **Menu → Compute → Instances → Create instance**:
+- **Image:** Canonical **Ubuntu 22.04**.
+- **Shape:** **Ampere (VM.Standard.A1.Flex)** — Always Free eligible, pick **1 OCPU /
+  6 GB** (ARM, plenty for the build). If A1 capacity is unavailable in your region,
+  use **VM.Standard.E2.1.Micro** (AMD, 1 GB — then add swap).
+- **SSH key:** upload your public key (or let Oracle generate one and download it).
+- Create. Note the **Public IP address**.
+
+### 2. Open the ports — TWO layers (Oracle's classic gotcha)
+**(a) Cloud security list.** Networking → **Virtual Cloud Networks** → your VCN →
+the subnet → **Security List** → **Add Ingress Rules**:
+- Source `0.0.0.0/0`, IP Protocol **TCP**, Destination port **80**.
+- Another: Source `0.0.0.0/0`, **TCP**, port **443**.
+(Port 22 is already open.)
+
+**(b) The VM's own firewall.** Oracle's Ubuntu image blocks 80/443 in iptables by
+default — open them and save:
+```bash
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo netfilter-persistent save
+```
+Both layers are required — miss either and HTTPS/Caddy can't be reached.
+
+### 3. DNS
+Point `doubts.adwaysacademy.com` as an **A record → the VM's public IP**. Remove the
+old Render CNAME, and remove the custom domain in Render.
+
+### 4. Install Docker (SSH in as `ubuntu`)
+```bash
+ssh ubuntu@YOUR_VM_IP
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker ubuntu   # re-login after this
+```
+
+### 5. Code + env
+```bash
+git clone https://github.com/vijay-pk/Clear-doubt.git
+cd Clear-doubt/deploy
+cp .env.production.example .env
+nano .env     # same Supabase / Groq / ADMIN_SEED values from Render
+```
+
+### 6. Run (Caddy auto-HTTPS)
+```bash
+docker compose up -d --build        # the default compose = app + Caddy
+docker compose logs -f app
+curl -I https://doubts.adwaysacademy.com/api/health   # 200 once DNS + cert are ready
+```
+Caddy gets the Let's Encrypt certificate automatically once the A record resolves and
+ports 80/443 are open on both layers.
+
+### 7. Verify & update
+Open `https://doubts.adwaysacademy.com`, sign in as admin — all data is there.
+Update later: `git pull && docker compose up -d --build` from `deploy/`.
+
+### Notes for Oracle
+- **ARM (A1):** the image is multi-arch and builds fine on arm64 (Node, Prisma,
+  argon2, Baileys all have arm64 builds).
+- **Micro (1 GB):** add swap before building (`fallocate`/`mkswap` as above).
+- The A1 shape is genuinely **always free** (no monthly hour cap like Render free).
