@@ -1,0 +1,22 @@
+# For a CyberPanel (OpenLiteSpeed) VPS: CyberPanel already owns ports 80/443 and
+# issues SSL, so we do NOT run Caddy here. This runs only the app, bound to
+# localhost:3001, and you point a CyberPanel website's Reverse Proxy at it.
+#
+# Run from the deploy/ directory:
+#   docker compose -f docker-compose.cyberpanel.yml up -d --build
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3001:3001" # localhost only; CyberPanel proxies to it
+    volumes:
+      - wa_session:/app/server/wa-session
+
+volumes:
+  wa_session:

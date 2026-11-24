@@ -157,3 +157,75 @@ state is external.
 - **Memory:** the Docker build needs ~1 GB free during `vite`/`tsc`. A 1 GB VPS may
   need swap; a 2 GB VPS builds cleanly. You can also build the image elsewhere and
   `docker pull` it if the VPS is tiny.
+
+---
+
+## CyberPanel (OpenLiteSpeed) VPS
+
+CyberPanel already uses ports 80/443 and manages SSL, so **don't run Caddy**. Run
+the app on localhost:3001 with `docker-compose.cyberpanel.yml` and let a CyberPanel
+website reverse-proxy to it.
+
+### 1. DNS
+Point `doubts.adwaysacademy.com` as an **A record → your VPS IP**. Remove the old
+Render CNAME, and remove the custom domain in Render.
+
+### 2. Create the website in CyberPanel
+CyberPanel → **Websites → Create Website**. Domain `doubts.adwaysacademy.com`, pick
+an email and a PHP version (PHP is unused but required by the form). Create it.
+
+### 3. Issue SSL
+CyberPanel → **SSL → Manage SSL** (or **Issue SSL**) → select the domain → issue a
+Let's Encrypt certificate. (Do this after DNS resolves to the VPS.)
+
+### 4. Install Docker (SSH as root)
+```bash
+curl -fsSL https://get.docker.com | sh
+```
+Works on the Ubuntu/AlmaLinux base CyberPanel runs on. Check: `docker compose version`.
+
+### 5. Get the code + env
+```bash
+git clone https://github.com/vijay-pk/Clear-doubt.git
+cd Clear-doubt/deploy
+cp .env.production.example .env
+nano .env          # paste the same Supabase / Groq / ADMIN_SEED values from Render
+```
+
+### 6. Build + run the app (localhost only)
+```bash
+docker compose -f docker-compose.cyberpanel.yml up -d --build
+docker compose -f docker-compose.cyberpanel.yml logs -f app   # watch for "API listening"
+curl -I http://127.0.0.1:3001/api/health                      # expect 200
+```
+
+### 7. Reverse proxy in CyberPanel
+CyberPanel → **Websites → List Websites → Manage** the domain → **Reverse Proxy**
+(or **Rewrite Rules**). Add a proxy to the app:
+
+- Reverse Proxy manager: Path `/`, Target/Address `http://127.0.0.1:3001` → Save.
+- Or in **Rewrite Rules**, add:
+  ```
+  RewriteEngine On
+  RewriteRule ^(.*)$ http://127.0.0.1:3001/$1 [P,L]
+  ```
+
+Then restart OpenLiteSpeed (CyberPanel → **Server Status → Restart LiteSpeed**, or
+`systemctl restart lsws`).
+
+### 8. Verify
+Open `https://doubts.adwaysacademy.com` → sign in as admin. All existing data is there.
+
+### 9. Updates later
+```bash
+cd Clear-doubt && git pull
+cd deploy && docker compose -f docker-compose.cyberpanel.yml up -d --build
+```
+
+### Notes for CyberPanel
+- Keep the app on **127.0.0.1:3001** (not public) — only LiteSpeed should face the internet.
+- Firewall: 80 and 443 open (CyberPanel defaults); 3001 stays internal.
+- If the build runs out of memory on a small box, add swap:
+  ```bash
+  fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  ```
