@@ -4,6 +4,7 @@ import { hashPassword, verifyPassword, generateToken, sha256 } from "../lib/cryp
 import { badRequest, conflict, unauthorized } from "../lib/errors.js";
 import { writeAudit } from "../audit/audit.js";
 import { normalizePhone } from "../lib/phone.js";
+import { accessBlockReason } from "./accessPolicy.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -80,7 +81,15 @@ export async function authenticate(email: string, password: string) {
   }
   const ok = await verifyPassword(user.passwordHash, password);
   if (!ok) throw unauthorized("Incorrect email or password.", "bad_credentials");
-  if (user.status === "SUSPENDED") throw unauthorized("This account is suspended.", "suspended");
+  const blocked = accessBlockReason(user, new Date());
+  if (blocked === "suspended") throw unauthorized("This account is suspended.", "suspended");
+  if (blocked === "deletion_pending")
+    throw unauthorized("This account is being closed. Contact your administrator.", "account_closing");
+  if (blocked === "expired")
+    throw unauthorized(
+      "Your access period has expired. Please contact your administrator if you need additional access.",
+      "account_expired",
+    );
   return user;
 }
 

@@ -6,6 +6,8 @@ import { processDocument } from "./jobs/handlers/processDocument.js";
 import { sendEmail } from "./jobs/handlers/sendEmail.js";
 import { deliverMessage } from "./jobs/handlers/deliverMessage.js";
 import { retention } from "./jobs/handlers/retention.js";
+import { expireSweep } from "./jobs/handlers/expireSweep.js";
+import { deleteStudent } from "./jobs/handlers/deleteStudent.js";
 
 // Wire all job handlers. Shared by the server entrypoint and the test harness.
 export function registerJobHandlers() {
@@ -14,6 +16,7 @@ export function registerJobHandlers() {
   registerHandler("processDocument", processDocument);
   registerHandler("sendEmail", sendEmail);
   registerHandler("deliverMessage", deliverMessage);
+  registerHandler("deleteStudent", deleteStudent);
   // Retention re-schedules itself once per day.
   registerHandler("retention", async (payload, ctx) => {
     await retention();
@@ -21,8 +24,16 @@ export function registerJobHandlers() {
     void payload;
     void ctx;
   });
+  // Student-access expiry sweep re-schedules itself once per hour.
+  registerHandler("expireSweep", async (payload, ctx) => {
+    await expireSweep();
+    await enqueue("expireSweep", {}, { dedupeKey: "expireSweep:hourly", runAt: new Date(Date.now() + 60 * 60 * 1000) });
+    void payload;
+    void ctx;
+  });
 }
 
 export async function scheduleRecurring() {
   await enqueue("retention", {}, { dedupeKey: "retention:daily", runAt: new Date(Date.now() + 60 * 1000) });
+  await enqueue("expireSweep", {}, { dedupeKey: "expireSweep:hourly", runAt: new Date(Date.now() + 60 * 1000) });
 }

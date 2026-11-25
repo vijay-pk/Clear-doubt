@@ -45,6 +45,15 @@ export const api = {
   del: <T>(p: string) => request<T>("DELETE", p),
 };
 
+export type AccessState = "ACTIVE" | "EXPIRING_SOON" | "EXPIRED" | "SUSPENDED" | "DELETION_PENDING";
+
+export interface AccessInfo {
+  state: AccessState;
+  accessStartAt: string | null;
+  accessExpiresAt: string | null;
+  remainingDays: number | null;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -52,4 +61,5 @@ export interface User {
   role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
   emailVerified: boolean;
   phone?: string | null; // WhatsApp number (E.164), students
+  access?: AccessInfo | null; // student access lifecycle (from /auth/me)
 }

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useAuth } from "./lib/auth";
 import { Spinner } from "./components/ui";
 import Login from "./pages/Login";
+import AccountExpired from "./pages/AccountExpired";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -14,6 +15,7 @@ import Knowledge from "./pages/admin/Knowledge";
 import Settings from "./pages/admin/Settings";
 import DeliveryLogs from "./pages/admin/DeliveryLogs";
 import Users from "./pages/admin/Users";
+import Students from "./pages/admin/Students";
 import Audit from "./pages/admin/Audit";
 
 function FullScreenSpinner() {
@@ -25,19 +27,20 @@ function FullScreenSpinner() {
 }
 
 function Protected({ roles, children }: { roles: Array<"SUPER_ADMIN" | "ADMIN" | "STUDENT">; children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, blocked, loading } = useAuth();
   const loc = useLocation();
   if (loading) return <FullScreenSpinner />;
-  if (!user) return <Navigate to="/login" state={{ from: loc.pathname }} replace />;
+  if (!user) return <Navigate to={blocked ? "/account-expired" : "/login"} state={{ from: loc.pathname }} replace />;
   if (!roles.includes(user.role)) return <Navigate to={user.role === "STUDENT" ? "/chat" : "/admin"} replace />;
   return <>{children}</>;
 }
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, blocked, loading } = useAuth();
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/account-expired" element={user ? <Navigate to={user.role === "STUDENT" ? "/chat" : "/admin"} replace /> : <AccountExpired />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
@@ -50,6 +53,7 @@ export default function App() {
         <Route path="knowledge" element={<Knowledge />} />
         <Route path="delivery" element={<DeliveryLogs />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="students" element={<Students />} />
         <Route path="users" element={<Users />} />
         <Route path="audit" element={<Audit />} />
       </Route>
@@ -57,7 +61,7 @@ export default function App() {
       <Route
         path="*"
         element={
-          loading ? <FullScreenSpinner /> : <Navigate to={user ? (user.role === "STUDENT" ? "/chat" : "/admin") : "/login"} replace />
+          loading ? <FullScreenSpinner /> : <Navigate to={user ? (user.role === "STUDENT" ? "/chat" : "/admin") : blocked ? "/account-expired" : "/login"} replace />
         }
       />
     </Routes>

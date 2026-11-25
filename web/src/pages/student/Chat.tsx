@@ -52,6 +52,11 @@ export default function Chat() {
         </div>
       </header>
 
+      {user?.access?.state === "EXPIRING_SOON" && (
+        <div className="px-4 py-2 text-center text-sm" style={{ borderBottom: "1px solid var(--border)", background: "color-mix(in srgb, #f59e0b 14%, var(--surface))", color: "var(--text)" }}>
+          Your access expires in {user.access.remainingDays ?? 0} day{(user.access.remainingDays ?? 0) === 1 ? "" : "s"}. Contact your administrator to extend it.
+        </div>
+      )}
       {user && user.role === "STUDENT" && !user.phone && <WhatsAppNumberBanner />}
       {settingsOpen && <AccountSettings onClose={() => setSettingsOpen(false)} />}
 

@@ -8,6 +8,7 @@ const nav = [
   { to: "/admin", label: "Overview", icon: "◎", end: true },
   { to: "/admin/queue", label: "Approval queue", icon: "✓" },
   { to: "/admin/knowledge", label: "Knowledge", icon: "📚" },
+  { to: "/admin/students", label: "Students", icon: "🎓" },
   { to: "/admin/delivery", label: "Delivery", icon: "📤" },
   { to: "/admin/settings", label: "Settings", icon: "⚙︎" },
   { to: "/admin/users", label: "Users", icon: "👥" },

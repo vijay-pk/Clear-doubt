@@ -5,15 +5,13 @@ import { consumeToken } from "../src/auth/authService.js";
 describe("auth & roles", () => {
   beforeEach(resetDb);
 
-  it("1. student can register and is active immediately (no verification)", async () => {
+  it("1. public self-registration is disabled (admin-only accounts)", async () => {
     const a = agent();
     const res = await a.post("/api/auth/register").send({ email: "new@test.local", name: "New Student", password: "Password123" });
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("registration_disabled");
     const user = await prisma.user.findUnique({ where: { email: "new@test.local" } });
-    expect(user?.emailVerified).toBe(true);
-    expect(user?.role).toBe("STUDENT");
-    const tok = await prisma.verificationToken.count({ where: { userId: user!.id, purpose: "EMAIL_VERIFY" } });
-    expect(tok).toBe(0);
+    expect(user).toBeNull();
   });
 
   it("2. students can ask doubts without email verification", async () => {
@@ -55,16 +53,14 @@ describe("auth & roles", () => {
   });
 
   it("email verification token flow marks the user verified", async () => {
-    const a = agent();
-    const reg = await a.post("/api/auth/register").send({ email: "v@test.local", name: "Vera", password: "Password123" });
-    expect(reg.status).toBe(201);
-    const user = await prisma.user.findUnique({ where: { email: "v@test.local" } });
+    const { user } = await makeStudent("v@test.local", false);
     // simulate the emailed token by issuing one we can read
     const { issueToken } = await import("../src/auth/authService.js");
-    const token = await issueToken(user!.id, "EMAIL_VERIFY");
+    const token = await issueToken(user.id, "EMAIL_VERIFY");
+    const a = agent();
     const res = await a.post("/api/auth/verify-email").send({ token });
     expect(res.status).toBe(200);
-    const after = await prisma.user.findUnique({ where: { id: user!.id } });
+    const after = await prisma.user.findUnique({ where: { id: user.id } });
     expect(after?.emailVerified).toBe(true);
     // token cannot be reused
     await expect(consumeToken(token, "EMAIL_VERIFY")).rejects.toThrow();

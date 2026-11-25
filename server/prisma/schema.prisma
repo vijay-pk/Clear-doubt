@@ -23,6 +23,7 @@ enum Role {
 enum UserStatus {
   ACTIVE
   SUSPENDED
+  DELETION_PENDING
 }
 
 enum DoubtStatus {
@@ -104,6 +105,17 @@ model User {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
+  // Admin-controlled time-limited access (students only; null = no limit, e.g. admins).
+  studentIdNo       String? // optional external student ID
+  accessStartAt     DateTime?
+  accessExpiresAt   DateTime? // the source of truth for expiry (UTC)
+  suspendedAt       DateTime?
+  deletionStartedAt DateTime?
+  adminNotes        String?
+  createdByAdminId  String?
+  createdByAdmin    User?    @relation("StudentCreator", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  createdStudents   User[]   @relation("StudentCreator")
+
   sessions       Session[]
   tokens         VerificationToken[]
   doubts         Doubt[]
@@ -114,6 +126,8 @@ model User {
 
   @@index([role])
   @@index([status])
+  @@index([accessExpiresAt])
+  @@index([status, accessExpiresAt])
 }
 
 model Session {

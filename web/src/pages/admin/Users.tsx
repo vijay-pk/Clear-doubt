@@ -54,7 +54,7 @@ export default function Users() {
   return (
     <div className="max-w-3xl">
       <h1 className="mb-1 text-2xl font-semibold tracking-tight">Users</h1>
-      <p className="mb-5 text-sm" style={{ color: "var(--text-soft)" }}>Students self-register. Admins are provisioned here (super admin only).</p>
+      <p className="mb-5 text-sm" style={{ color: "var(--text-soft)" }}>Admins are provisioned here (super admin only). Student accounts are managed under Students.</p>
 
       {isSuper && (
         <Card className="mb-4">

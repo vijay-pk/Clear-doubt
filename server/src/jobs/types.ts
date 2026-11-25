@@ -4,7 +4,9 @@ export type JobType =
   | "processDocument"
   | "generateAnswer"
   | "deliverMessage"
-  | "retention";
+  | "retention"
+  | "expireSweep"
+  | "deleteStudent";
 
 export interface JobContext {
   jobId: string;

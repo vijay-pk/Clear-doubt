@@ -6,7 +6,6 @@ import { authLimiter } from "../middleware/rateLimit.js";
 import { requireAuth } from "../middleware/authContext.js";
 import {
   updateOwnProfile,
-  registerStudent,
   authenticate,
   normalizeEmail,
   issueToken,
@@ -15,9 +14,11 @@ import {
   changeOwnPassword,
   resetPasswordWithToken,
 } from "../auth/authService.js";
+import { derivedState, remainingDays } from "../auth/accessPolicy.js";
+import { getSettings } from "../settings/settingsService.js";
 import { createSession, setSessionCookie, clearSessionCookie, destroySession } from "../auth/sessionService.js";
 import { enqueue } from "../jobs/queue.js";
-import { badRequest } from "../lib/errors.js";
+import { badRequest, forbidden, unauthorized } from "../lib/errors.js";
 import { env } from "../config/env.js";
 import { writeAudit } from "../audit/audit.js";
 import { normalizePhone } from "../lib/phone.js";
@@ -25,19 +26,15 @@ import { normalizePhone } from "../lib/phone.js";
 export const authRouter = Router();
 authRouter.use(authLimiter);
 
-const registerSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(2).max(80),
-  password: z.string().min(10).max(200),
-  phone: z.string().max(30).optional(),
-});
-
+// Public self-registration is disabled: student accounts are created by an admin.
 authRouter.post(
   "/register",
-  asyncHandler(async (req, res) => {
-    const input = registerSchema.parse(req.body);
-    await registerStudent(input);
-    res.status(201).json({ ok: true, message: "Account created. You can sign in now." });
+  asyncHandler(async (_req, res) => {
+    throw forbidden(
+      "Your account must be created by an administrator. Please contact your course administrator.",
+      "registration_disabled",
+    );
+    void res;
   }),
 );
 
@@ -120,13 +117,37 @@ authRouter.post(
   }),
 );
 
-// Authenticated self endpoints
+// Authenticated self endpoint. Not behind requireAuth so a blocked (expired /
+// suspended) session gets a specific 403 the SPA can route on, not a bare 401.
 authRouter.get(
   "/me",
-  requireAuth,
   asyncHandler(async (req, res) => {
-    const row = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { phone: true } });
-    res.json({ user: { ...req.user, phone: row?.phone ?? null }, csrfToken: req.csrfSecret });
+    if (!req.user) {
+      if (req.blockedReason === "expired")
+        throw forbidden(
+          "Your access period has expired. Please contact your administrator if you need additional access.",
+          "account_expired",
+        );
+      if (req.blockedReason === "suspended") throw forbidden("This account is suspended.", "account_suspended");
+      if (req.blockedReason === "deletion_pending")
+        throw forbidden("This account is being closed.", "account_closing");
+      throw unauthorized();
+    }
+    const row = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { phone: true, role: true, status: true, accessStartAt: true, accessExpiresAt: true },
+    });
+    const now = new Date();
+    const cfg = await getSettings();
+    const access = row
+      ? {
+          state: derivedState(row, now, cfg),
+          accessStartAt: row.accessStartAt,
+          accessExpiresAt: row.accessExpiresAt,
+          remainingDays: remainingDays(row, now),
+        }
+      : null;
+    res.json({ user: { ...req.user, phone: row?.phone ?? null, access }, csrfToken: req.csrfSecret });
   }),
 );
 

@@ -2,24 +2,33 @@ import type { Request, Response, NextFunction } from "express";
 import type { Role } from "@prisma/client";
 import { env } from "../config/env.js";
 import { loadSession } from "../auth/sessionService.js";
+import { accessBlockReason } from "../auth/accessPolicy.js";
 import { forbidden, unauthorized } from "../lib/errors.js";
 
 // Attaches req.user / req.sessionId if a valid session cookie is present. Never throws.
+// Expiry is enforced here on EVERY request (the expiry timestamp is the source of
+// truth), so an old session/token is rejected the instant access lapses — independent
+// of the background sweep job.
 export async function authContext(req: Request, _res: Response, next: NextFunction) {
   try {
     const token = req.cookies?.[env.SESSION_COOKIE_NAME];
     if (token) {
       const session = await loadSession(token);
-      if (session && session.user.status === "ACTIVE") {
-        req.user = {
-          id: session.user.id,
-          email: session.user.email,
-          role: session.user.role,
-          name: session.user.name,
-          emailVerified: session.user.emailVerified,
-        };
-        req.sessionId = session.id;
-        req.csrfSecret = session.csrfSecret;
+      if (session) {
+        const blocked = accessBlockReason(session.user, new Date());
+        if (blocked) {
+          req.blockedReason = blocked;
+        } else {
+          req.user = {
+            id: session.user.id,
+            email: session.user.email,
+            role: session.user.role,
+            name: session.user.name,
+            emailVerified: session.user.emailVerified,
+          };
+          req.sessionId = session.id;
+          req.csrfSecret = session.csrfSecret;
+        }
       }
     }
   } catch {

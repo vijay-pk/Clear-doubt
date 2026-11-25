@@ -6,11 +6,8 @@ import { useToast } from "../lib/toast";
 import { Button, Input, PasswordInput, Field, Card } from "../components/ui";
 
 export default function Login() {
-  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -20,18 +17,11 @@ export default function Login() {
     e.preventDefault();
     setBusy(true);
     try {
-      if (mode === "login") {
-        const res = await api.post<{ user: User; redirect: string }>("/auth/login", { email, password });
-        // Seed the cache synchronously so the protected route sees the user
-        // immediately (invalidate is async and raced the navigation → bounce).
-        qc.setQueryData(["me"], res.user);
-        nav(res.redirect, { replace: true });
-      } else {
-        await api.post("/auth/register", { email, name, password, phone });
-        toast("Account created. You can sign in now.", "success");
-        setMode("login");
-        setPassword("");
-      }
+      const res = await api.post<{ user: User; redirect: string }>("/auth/login", { email, password });
+      // Seed the cache synchronously so the protected route sees the user
+      // immediately (invalidate is async and raced the navigation → bounce).
+      qc.setQueryData(["me"], { user: res.user, blocked: null });
+      nav(res.redirect, { replace: true });
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "Something went wrong", "error");
     } finally {
@@ -49,49 +39,22 @@ export default function Login() {
         </div>
 
         <Card>
-          <div className="mb-5 flex rounded-full p-1" style={{ background: "var(--surface-2)" }}>
-            {(["login", "register"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className="flex-1 rounded-full py-2 text-sm font-medium transition"
-                style={mode === m ? { background: "var(--surface)", color: "var(--text)", boxShadow: "var(--shadow)" } : { color: "var(--text-soft)" }}
-              >
-                {m === "login" ? "Sign in" : "Create account"}
-              </button>
-            ))}
-          </div>
-
           <form onSubmit={submit} className="space-y-3">
-            {mode === "register" && (
-              <Field label="Full name">
-                <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Your name" autoComplete="name" />
-              </Field>
-            )}
             <Field label="Email">
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" autoComplete="email" />
             </Field>
-            {mode === "register" && (
-              <Field label="WhatsApp number">
-                <Input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+91 98765 43210" autoComplete="tel" />
-              </Field>
-            )}
             <Field label="Password">
-              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required placeholder={mode === "register" ? "At least 10 characters" : "Your password"} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Your password" autoComplete="current-password" />
             </Field>
-            <Button type="submit" loading={busy} className="w-full">{mode === "login" ? "Sign in" : "Create account"}</Button>
+            <Button type="submit" loading={busy} className="w-full">Sign in</Button>
           </form>
 
-          {mode === "login" && (
-            <div className="mt-4 text-center text-sm">
-              <Link to="/forgot-password" style={{ color: "var(--color-brand)" }}>Forgot password?</Link>
-            </div>
-          )}
-          {mode === "register" && (
-            <p className="mt-4 text-center text-xs" style={{ color: "var(--text-soft)" }}>
-              Students only. Admin accounts are provisioned by Adways Academy.
-            </p>
-          )}
+          <div className="mt-4 text-center text-sm">
+            <Link to="/forgot-password" style={{ color: "var(--color-brand)" }}>Forgot password?</Link>
+          </div>
+          <p className="mt-4 text-center text-xs" style={{ color: "var(--text-soft)" }}>
+            Accounts are created by Adways Academy. If you don't have one, please contact your course administrator.
+          </p>
         </Card>
       </div>
     </div>

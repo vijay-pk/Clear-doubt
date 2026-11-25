@@ -17,6 +17,9 @@ export interface PlatformSettings {
   whatsappProvider: WhatsAppProvider;
   // WhatsApp Web is unofficial automation; a super admin must acknowledge the ban risk.
   whatsappWebRiskAck: boolean;
+  // Student access lifecycle (all times UTC).
+  studentExpiringSoonDays: number; // show "expiring soon" within this many days of expiry
+  studentAccessGraceDays: number; // days after expiry before data is auto-deleted
 }
 
 const DEFAULTS: PlatformSettings = {
@@ -29,6 +32,8 @@ const DEFAULTS: PlatformSettings = {
   defaultDeliveryChannels: ["WEBSITE", "EMAIL"],
   whatsappProvider: "none",
   whatsappWebRiskAck: false,
+  studentExpiringSoonDays: 3,
+  studentAccessGraceDays: 7,
 };
 
 const KEY = "platform";
