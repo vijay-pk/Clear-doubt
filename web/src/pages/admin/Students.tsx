@@ -39,7 +39,7 @@ const STATE_TONE: Record<AccessState, "green" | "amber" | "red" | "blue" | "neut
 const stateLabel = (s: AccessState) => s.replace("_", " ").toLowerCase();
 const fmt = (iso: string | null) => (iso ? `${new Date(iso).toUTCString().slice(5, 16)} UTC` : "—");
 
-const DURATIONS = [7, 15, 30, 60, 90, 180, 365] as const;
+const DURATIONS = [45, 90] as const;
 
 export default function Students() {
   const qc = useQueryClient();
@@ -173,31 +173,23 @@ export default function Students() {
 function CreateStudent({ onDone }: { onDone: () => void }) {
   const toast = useToast();
   const [form, setForm] = useState({ name: "", email: "", password: "", phone: "", studentIdNo: "", adminNotes: "" });
-  const [mode, setMode] = useState<"days" | "date">("days");
-  const [days, setDays] = useState<number>(30);
-  const [customDate, setCustomDate] = useState("");
+  const [days, setDays] = useState<number>(45);
   const [busy, setBusy] = useState(false);
 
-  const preview = useMemo(() => {
-    if (mode === "days") return new Date(Date.now() + days * 86400000);
-    const d = customDate ? new Date(customDate) : null;
-    return d && !Number.isNaN(d.getTime()) ? d : null;
-  }, [mode, days, customDate]);
+  const preview = useMemo(() => new Date(Date.now() + days * 86400000), [days]);
 
   async function create() {
     setBusy(true);
     try {
-      const body: Record<string, unknown> = {
+      await api.post("/admin/students", {
         name: form.name,
         email: form.email,
         password: form.password,
         phone: form.phone || undefined,
         studentIdNo: form.studentIdNo || undefined,
         adminNotes: form.adminNotes || undefined,
-      };
-      if (mode === "days") body.durationDays = days;
-      else body.customExpiresAt = customDate ? new Date(customDate).toISOString() : undefined;
-      await api.post("/admin/students", body);
+        durationDays: days,
+      });
       toast("Student created.", "success");
       onDone();
     } catch (err) {
@@ -220,25 +212,17 @@ function CreateStudent({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="mt-3">
-        <div className="mb-2 flex gap-2 text-xs">
-          <button onClick={() => setMode("days")} className="rounded-full px-3 py-1" style={mode === "days" ? { background: "var(--surface-2)" } : { color: "var(--text-soft)" }}>Duration</button>
-          <button onClick={() => setMode("date")} className="rounded-full px-3 py-1" style={mode === "date" ? { background: "var(--surface-2)" } : { color: "var(--text-soft)" }}>Exact expiry</button>
+        <div className="mb-1 text-xs font-medium" style={{ color: "var(--text-soft)" }}>Access period</div>
+        <div className="flex gap-2">
+          {DURATIONS.map((d) => (
+            <button key={d} onClick={() => setDays(d)} className="rounded-full px-4 py-1.5 text-sm font-medium"
+              style={days === d ? { background: "var(--color-brand)", color: "#fff" } : { background: "var(--surface-2)", color: "var(--text-soft)" }}>
+              {d} days
+            </button>
+          ))}
         </div>
-        {mode === "days" ? (
-          <div className="flex flex-wrap gap-2">
-            {DURATIONS.map((d) => (
-              <button key={d} onClick={() => setDays(d)} className="rounded-full px-3 py-1.5 text-xs font-medium"
-                style={days === d ? { background: "var(--color-brand)", color: "#fff" } : { background: "var(--surface-2)", color: "var(--text-soft)" }}>
-                {d}d
-              </button>
-            ))}
-            <input type="number" min={1} max={3650} value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-24 rounded-xl px-3 py-1.5 text-sm" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)" }} />
-          </div>
-        ) : (
-          <input type="datetime-local" value={customDate} onChange={(e) => setCustomDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)" }} />
-        )}
         <p className="mt-2 text-xs" style={{ color: "var(--text-soft)" }}>
-          Expiry: <strong>{preview ? fmt(preview.toISOString()) : "—"}</strong>
+          Expires: <strong>{fmt(preview.toISOString())}</strong>
         </p>
       </div>
 
