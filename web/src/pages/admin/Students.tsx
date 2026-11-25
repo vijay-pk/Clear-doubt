@@ -37,7 +37,7 @@ const STATE_TONE: Record<AccessState, "green" | "amber" | "red" | "blue" | "neut
   DELETION_PENDING: "neutral",
 };
 const stateLabel = (s: AccessState) => s.replace("_", " ").toLowerCase();
-const fmt = (iso: string | null) => (iso ? `${new Date(iso).toUTCString().slice(5, 16)} UTC` : "—");
+const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
 
 const DURATIONS = [45, 90] as const;
 

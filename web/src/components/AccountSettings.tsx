@@ -104,10 +104,10 @@ export default function AccountSettings({ onClose }: { onClose: () => void }) {
               <div className="rounded-xl p-3 text-sm" style={{ background: "var(--surface-2)" }}>
                 <div className="flex justify-between"><span style={{ color: "var(--text-soft)" }}>Status</span><span>{user.access.state.replace("_", " ").toLowerCase()}</span></div>
                 {user.access.accessStartAt && (
-                  <div className="flex justify-between"><span style={{ color: "var(--text-soft)" }}>Started</span><span>{new Date(user.access.accessStartAt).toUTCString().slice(5, 16)} UTC</span></div>
+                  <div className="flex justify-between"><span style={{ color: "var(--text-soft)" }}>Started</span><span>{new Date(user.access.accessStartAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span></div>
                 )}
                 {user.access.accessExpiresAt && (
-                  <div className="flex justify-between"><span style={{ color: "var(--text-soft)" }}>Expires</span><span>{new Date(user.access.accessExpiresAt).toUTCString().slice(5, 16)} UTC</span></div>
+                  <div className="flex justify-between"><span style={{ color: "var(--text-soft)" }}>Expires</span><span>{new Date(user.access.accessExpiresAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span></div>
                 )}
                 {user.access.remainingDays !== null && (
                   <div className="flex justify-between"><span style={{ color: "var(--text-soft)" }}>Remaining</span><span>{Math.max(0, user.access.remainingDays)} day{user.access.remainingDays === 1 ? "" : "s"}</span></div>
