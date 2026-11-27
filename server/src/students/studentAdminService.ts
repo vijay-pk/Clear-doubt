@@ -1,8 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { hashPassword } from "../lib/crypto.js";
-import { normalizeEmail, validatePasswordStrength } from "../auth/authService.js";
-import { normalizePhone } from "../lib/phone.js";
+import { normalizeEmail } from "../auth/authService.js";
+import { toE164 } from "../lib/phoneIntl.js";
 import { destroyAllForUser } from "../auth/sessionService.js";
 import { getSettings } from "../settings/settingsService.js";
 import { enqueue } from "../jobs/queue.js";
@@ -32,6 +32,10 @@ const STUDENT_SELECT = {
   adminNotes: true,
   createdByAdminId: true,
   createdAt: true,
+  mustChangePassword: true,
+  credentialEmailStatus: true,
+  credentialEmailSentAt: true,
+  lastLoginAt: true,
 } satisfies Prisma.UserSelect;
 
 type StudentRow = Prisma.UserGetPayload<{ select: typeof STUDENT_SELECT }>;
@@ -70,12 +74,18 @@ async function findStudentOrThrow(id: string): Promise<StudentRow> {
   return row;
 }
 
+// Hash of the configured shared temporary password. Students are forced to
+// replace it on first login (mustChangePassword). Never stored in plaintext.
+async function tempPasswordHash(): Promise<string> {
+  const { studentTempPassword } = await getSettings();
+  return hashPassword(studentTempPassword);
+}
+
 export async function createStudent(
   actorId: string,
   input: {
     name: string;
     email: string;
-    password: string;
     phone?: string;
     studentIdNo?: string;
     durationDays?: number;
@@ -87,10 +97,9 @@ export async function createStudent(
   if (!EMAIL_RE.test(email)) throw badRequest("Enter a valid email address.", "invalid_email");
   const name = input.name.trim();
   if (name.length < 2) throw badRequest("Enter the student's name.", "invalid_name");
-  validatePasswordStrength(input.password);
-  const phone = input.phone?.trim() ? normalizePhone(input.phone) : null;
+  const phone = input.phone?.trim() ? toE164(input.phone) : null;
   if (input.phone?.trim() && !phone)
-    throw badRequest("Enter a valid WhatsApp number with country code, e.g. +91 98765 43210.", "invalid_phone");
+    throw badRequest("Enter a valid phone number with its country code.", "invalid_phone");
 
   const now = new Date();
   const accessExpiresAt = computeExpiry(input, now);
@@ -102,7 +111,7 @@ export async function createStudent(
     data: {
       email,
       name,
-      passwordHash: await hashPassword(input.password),
+      passwordHash: await tempPasswordHash(),
       role: "STUDENT",
       phone,
       studentIdNo: input.studentIdNo?.trim() || null,
@@ -112,9 +121,12 @@ export async function createStudent(
       accessExpiresAt,
       adminNotes: input.adminNotes?.trim() || null,
       createdByAdminId: actorId,
+      mustChangePassword: true,
+      credentialEmailStatus: "PENDING",
     },
     select: STUDENT_SELECT,
   });
+  await enqueue("sendEmail", { type: "credential", userId: row.id }, { dedupeKey: `credential:${row.id}` });
   await writeAudit({
     actorId,
     action: "student.create",
@@ -123,6 +135,14 @@ export async function createStudent(
     meta: { accessExpiresAt: accessExpiresAt.toISOString() },
   });
   return view(row);
+}
+
+// Re-queue the credential email for an existing student (admin "Resend").
+export async function resendCredentials(actorId: string, id: string): Promise<void> {
+  const student = await findStudentOrThrow(id);
+  await prisma.user.update({ where: { id: student.id }, data: { credentialEmailStatus: "PENDING" } });
+  await enqueue("sendEmail", { type: "credential", userId: student.id }, { dedupeKey: `credential:${student.id}` });
+  await writeAudit({ actorId, action: "student.resend_credentials", entityType: "User", entityId: student.id });
 }
 
 export async function listStudents(opts: { search?: string; state?: DerivedState }): Promise<StudentView[]> {
@@ -184,8 +204,8 @@ export async function updateStudent(
   }
   if (patch.phone !== undefined) {
     if (patch.phone && patch.phone.trim()) {
-      const phone = normalizePhone(patch.phone);
-      if (!phone) throw badRequest("Enter a valid WhatsApp number with country code.", "invalid_phone");
+      const phone = toE164(patch.phone);
+      if (!phone) throw badRequest("Enter a valid phone number with its country code.", "invalid_phone");
       data.phone = phone;
     } else data.phone = null;
   }

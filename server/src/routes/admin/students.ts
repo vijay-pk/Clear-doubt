@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
+import multer from "multer";
 import { asyncHandler } from "../../http/helpers.js";
+import { prisma } from "../../db/prisma.js";
+import { badRequest } from "../../lib/errors.js";
 import {
   createStudent,
   listStudents,
@@ -12,17 +15,22 @@ import {
   reactivateStudent,
   deletionPreview,
   requestDeletion,
+  resendCredentials,
   computeExpiry,
 } from "../../students/studentAdminService.js";
+import { parseImportFile, buildPreview, commitImport, sampleCsv } from "../../students/importService.js";
 
 export const studentsRouter = Router();
 
+// Small in-memory uploader for CSV/XLSX imports (≤2 MB, one file).
+const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 } });
+
 const STATES = ["ACTIVE", "EXPIRING_SOON", "EXPIRED", "SUSPENDED", "DELETION_PENDING"] as const;
 
+// No password: every student gets the configured temporary password + a credential email.
 const createSchema = z.object({
   name: z.string().min(2).max(80),
   email: z.string().email(),
-  password: z.string().min(10).max(200),
   phone: z.string().max(30).optional(),
   studentIdNo: z.string().max(60).optional(),
   durationDays: z.number().int().positive().max(3650).optional(),
@@ -55,6 +63,63 @@ studentsRouter.post(
       .object({ durationDays: z.number().int().positive().max(3650).optional(), customExpiresAt: z.string().datetime().optional() })
       .parse(req.body);
     res.json({ expiresAt: computeExpiry(input, new Date()).toISOString() });
+  }),
+);
+
+// Download a sample CSV template.
+studentsRouter.get("/students/import/template", (_req, res) => {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="students-template.csv"');
+  res.send(sampleCsv());
+});
+
+// Recent import batches (history).
+studentsRouter.get(
+  "/students/import/batches",
+  asyncHandler(async (_req, res) => {
+    const batches = await prisma.importBatch.findMany({ orderBy: { createdAt: "desc" }, take: 30 });
+    res.json({ batches });
+  }),
+);
+
+// Parse an uploaded CSV/XLSX and return a validated preview (no accounts created).
+studentsRouter.post(
+  "/students/import/parse",
+  importUpload.single("file"),
+  asyncHandler(async (req, res) => {
+    const file = req.file;
+    if (!file?.buffer?.length) throw badRequest("Upload a .csv or .xlsx file.", "no_file");
+    const rows = parseImportFile(file.buffer, file.originalname || "upload.csv");
+    if (rows.length > 2000) throw badRequest("Too many rows (max 2000 per import).", "too_many_rows");
+    const preview = await buildPreview(rows);
+    res.json({ fileName: file.originalname, ...preview });
+  }),
+);
+
+// Create accounts for the confirmed rows + queue their credential emails.
+studentsRouter.post(
+  "/students/import/commit",
+  asyncHandler(async (req, res) => {
+    const body = z
+      .object({
+        fileName: z.string().max(200).optional(),
+        defaultDurationDays: z.number().int().positive().max(3650).nullable().optional(),
+        rows: z
+          .array(
+            z.object({
+              name: z.string().max(80),
+              email: z.string().max(200),
+              phone: z.string().max(30).optional(),
+              studentIdNo: z.string().max(60).optional(),
+              durationDays: z.number().int().positive().max(3650).optional(),
+              customExpiresAt: z.string().datetime().optional(),
+            }),
+          )
+          .max(2000),
+      })
+      .parse(req.body);
+    const result = await commitImport(req.user!.id, body.rows, body.defaultDurationDays ?? null, body.fileName ?? "import.csv");
+    res.json({ result });
   }),
 );
 
@@ -110,6 +175,15 @@ studentsRouter.post(
   "/students/:id/reactivate",
   asyncHandler(async (req, res) => {
     res.json({ student: await reactivateStudent(req.user!.id, String(req.params.id)) });
+  }),
+);
+
+// Re-send the credential (welcome) email to an existing student.
+studentsRouter.post(
+  "/students/:id/resend-credentials",
+  asyncHandler(async (req, res) => {
+    await resendCredentials(req.user!.id, String(req.params.id));
+    res.json({ ok: true });
   }),
 );
 

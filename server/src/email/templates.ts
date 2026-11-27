@@ -44,6 +44,42 @@ export function passwordResetEmail(to: string, name: string, token: string): Ema
   };
 }
 
+export function credentialEmail(
+  to: string,
+  name: string,
+  tempPassword: string,
+  expiryDate: string,
+): EmailMessage {
+  const loginUrl = env.APP_LOGIN_URL ?? `${env.APP_URL}/login`;
+  const rows = [
+    ["Email", escapeHtml(to)],
+    ["Temporary password", escapeHtml(tempPassword)],
+    ["Access expires on", escapeHtml(expiryDate)],
+  ]
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:6px 0;color:#86868b;">${k}</td><td style="padding:6px 0;text-align:right;font-weight:600;">${v}</td></tr>`,
+    )
+    .join("");
+  return {
+    to,
+    subject: `Your ${BRAND} Student Account Is Ready`,
+    html: layout(
+      "Your student account is ready",
+      `<p>Hello ${escapeHtml(name)},</p>
+       <p>Your account for ${BRAND}'s Doubt Clearing Platform has been created. Here are your login details:</p>
+       <table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:15px;">${rows}</table>
+       ${button(loginUrl, "Log in")}
+       <p style="background:#fff4e5;border-radius:12px;padding:12px 14px;color:#8a5a00;font-size:14px;">
+         <strong>Important:</strong> You must change this temporary password immediately after your first login.
+         You cannot access the student dashboard until you do.
+       </p>
+       <p style="color:#86868b;font-size:13px;">Keep your login details private. If you can't sign in, contact your course administrator.</p>`,
+    ),
+    text: `Hello ${name},\n\nYour ${BRAND} student account is ready.\n\nEmail: ${to}\nTemporary password: ${tempPassword}\nAccess expires on: ${expiryDate}\n\nLog in: ${loginUrl}\n\nIMPORTANT: Change your temporary password immediately after your first login. You cannot access the dashboard until you do.\n\nAdways Academy Team`,
+  };
+}
+
 export function answerEmail(to: string, name: string, question: string, answer: string): EmailMessage {
   const link = `${env.APP_URL}/chat`;
   return {

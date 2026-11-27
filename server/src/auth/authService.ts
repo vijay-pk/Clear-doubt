@@ -98,7 +98,12 @@ export async function changeOwnPassword(userId: string, currentPassword: string,
   const ok = await verifyPassword(user.passwordHash, currentPassword);
   if (!ok) throw unauthorized("Current password is incorrect.", "bad_credentials");
   validatePasswordStrength(newPassword);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(newPassword) } });
+  // Clearing mustChangePassword here completes the mandatory first-login change;
+  // the shared temporary credential is now replaced by the student's own password.
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false },
+  });
   await writeAudit({ actorId: userId, action: "user.password_change", entityType: "User", entityId: userId });
 }
 

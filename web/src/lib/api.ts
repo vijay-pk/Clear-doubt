@@ -60,6 +60,7 @@ export interface User {
   name: string;
   role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
   emailVerified: boolean;
+  mustChangePassword?: boolean; // student still on the temporary password
   phone?: string | null; // WhatsApp number (E.164), students
   access?: AccessInfo | null; // student access lifecycle (from /auth/me)
 }

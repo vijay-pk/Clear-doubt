@@ -20,6 +20,11 @@ export interface PlatformSettings {
   // Student access lifecycle (all times UTC).
   studentExpiringSoonDays: number; // show "expiring soon" within this many days of expiry
   studentAccessGraceDays: number; // days after expiry before data is auto-deleted
+  // Shared initial password assigned to every new student. SECURITY: a shared
+  // credential is risky; the risk is mitigated by mustChangePassword=true, which
+  // forces each student to replace it on first login before any access. Swap this
+  // for per-student random passwords later without touching auth.
+  studentTempPassword: string;
 }
 
 const DEFAULTS: PlatformSettings = {
@@ -34,6 +39,7 @@ const DEFAULTS: PlatformSettings = {
   whatsappWebRiskAck: false,
   studentExpiringSoonDays: 3,
   studentAccessGraceDays: 7,
+  studentTempPassword: "MPBA@123",
 };
 
 const KEY = "platform";

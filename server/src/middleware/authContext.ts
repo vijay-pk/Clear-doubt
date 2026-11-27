@@ -25,6 +25,7 @@ export async function authContext(req: Request, _res: Response, next: NextFuncti
             role: session.user.role,
             name: session.user.name,
             emailVerified: session.user.emailVerified,
+            mustChangePassword: session.user.mustChangePassword,
           };
           req.sessionId = session.id;
           req.csrfSecret = session.csrfSecret;
@@ -48,6 +49,16 @@ export function requireRole(...roles: Role[]) {
     if (!roles.includes(req.user.role)) return next(forbidden());
     next();
   };
+}
+
+// Blocks a student who still has the temporary password from using any student
+// feature until they change it. Enforced on the backend, not just in the SPA.
+export function requirePasswordChanged(req: Request, _res: Response, next: NextFunction) {
+  if (!req.user) return next(unauthorized());
+  if (req.user.role === "STUDENT" && req.user.mustChangePassword) {
+    return next(forbidden("Please create your new password to continue using your student account.", "password_change_required"));
+  }
+  next();
 }
 
 export function requireVerified(req: Request, _res: Response, next: NextFunction) {

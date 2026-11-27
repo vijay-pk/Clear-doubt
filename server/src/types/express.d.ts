@@ -8,6 +8,7 @@ declare global {
       role: Role;
       name: string;
       emailVerified: boolean;
+      mustChangePassword: boolean;
     }
     interface Request {
       user?: AuthedUser;

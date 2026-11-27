@@ -13,6 +13,10 @@ export interface SessionCreateContext {
 export async function createSession(userId: string, ctx: SessionCreateContext) {
   const token = generateToken(32);
   const csrfSecret = generateToken(24);
+  // Persistent login, but a session must never outlive the student's access window.
+  let expiresAt = new Date(Date.now() + TTL_MS());
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { accessExpiresAt: true } });
+  if (u?.accessExpiresAt && u.accessExpiresAt.getTime() < expiresAt.getTime()) expiresAt = u.accessExpiresAt;
   const session = await prisma.session.create({
     data: {
       userId,
@@ -20,7 +24,7 @@ export async function createSession(userId: string, ctx: SessionCreateContext) {
       csrfSecret,
       ip: ctx.ip,
       userAgent: ctx.userAgent?.slice(0, 500),
-      expiresAt: new Date(Date.now() + TTL_MS()),
+      expiresAt,
     },
   });
   return { token, csrfToken: csrfSecret, sessionId: session.id };

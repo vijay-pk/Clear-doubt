@@ -50,11 +50,14 @@ authRouter.post(
       userAgent: req.get("user-agent") ?? undefined,
     });
     setSessionCookie(res, token, csrfToken);
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {});
     await writeAudit({ actorId: user.id, action: "auth.login", entityType: "User", entityId: user.id, ip: clientIp(req) });
+    // A student still on the temporary password must change it before anything else.
+    const redirect =
+      user.role === "STUDENT" ? (user.mustChangePassword ? "/change-password" : "/chat") : "/admin";
     res.json({
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: user.emailVerified },
-      // where the SPA should route this user
-      redirect: user.role === "STUDENT" ? "/chat" : "/admin",
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: user.emailVerified, mustChangePassword: user.mustChangePassword },
+      redirect,
     });
   }),
 );
@@ -148,6 +151,8 @@ authRouter.get(
         }
       : null;
     res.json({ user: { ...req.user, phone: row?.phone ?? null, access }, csrfToken: req.csrfSecret });
+    // req.user already carries mustChangePassword (from authContext), so the SPA
+    // can force the change-password screen.
   }),
 );
 

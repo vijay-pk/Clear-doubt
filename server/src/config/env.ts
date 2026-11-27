@@ -17,6 +17,8 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(3001),
   APP_URL: z.string().url().default("http://localhost:3001"),
+  // Login URL used in student credential emails. Defaults to APP_URL + /login.
+  APP_LOGIN_URL: z.string().url().optional(),
 
   DATABASE_URL: z.string().min(1),
   DIRECT_URL: z.string().optional(),

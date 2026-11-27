@@ -9,13 +9,20 @@ import { whatsappEnabled } from "../../messaging/whatsappSend.js";
 
 export const settingsRouter = Router();
 
+// Never expose the shared temporary student password in any API response.
+function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
+  const { studentTempPassword: _tmp, ...rest } = s;
+  void _tmp;
+  return rest;
+}
+
 settingsRouter.get(
   "/settings",
   asyncHandler(async (_req, res) => {
     const settings = await getSettings();
     // Expose config FLAGS only — never saved secrets (tokens/keys stay server-side).
     res.json({
-      settings,
+      settings: publicSettings(settings),
       integrations: {
         aiProvider: env.AI_PROVIDER,
         embeddingProvider: env.EMBEDDING_PROVIDER,
@@ -45,7 +52,7 @@ settingsRouter.put(
   asyncHandler(async (req, res) => {
     const patch = patchSchema.parse(req.body);
     const settings = await updateSettings(patch, req.user!.id);
-    res.json({ settings });
+    res.json({ settings: publicSettings(settings) });
   }),
 );
 
@@ -55,7 +62,7 @@ settingsRouter.post(
   asyncHandler(async (req, res) => {
     const { paused } = z.object({ paused: z.boolean() }).parse(req.body);
     const settings = await updateSettings({ autoReplyPaused: paused }, req.user!.id);
-    res.json({ settings });
+    res.json({ settings: publicSettings(settings) });
   }),
 );
 

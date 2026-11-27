@@ -2,14 +2,15 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma.js";
 import { asyncHandler } from "../http/helpers.js";
-import { requireAuth } from "../middleware/authContext.js";
+import { requireAuth, requirePasswordChanged } from "../middleware/authContext.js";
 import { imageUpload, validateImage } from "../middleware/upload.js";
 import { createDoubt, addMessage, listDoubts, getDoubtForStudent, type ImageInput } from "../doubts/doubtService.js";
 import { getStorage } from "../storage/storage.js";
 import { forbidden, notFound } from "../lib/errors.js";
 
 export const doubtsRouter = Router();
-doubtsRouter.use(requireAuth);
+// Must be signed in AND (for students) past the mandatory first-login password change.
+doubtsRouter.use(requireAuth, requirePasswordChanged);
 
 // Only students use the doubt portal; admins have the dashboard.
 function studentOnly(req: Express.Request): string {

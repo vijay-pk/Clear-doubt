@@ -4,6 +4,7 @@ import { useAuth } from "./lib/auth";
 import { Spinner } from "./components/ui";
 import Login from "./pages/Login";
 import AccountExpired from "./pages/AccountExpired";
+import ChangePassword from "./pages/ChangePassword";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -31,6 +32,8 @@ function Protected({ roles, children }: { roles: Array<"SUPER_ADMIN" | "ADMIN" |
   const loc = useLocation();
   if (loading) return <FullScreenSpinner />;
   if (!user) return <Navigate to={blocked ? "/account-expired" : "/login"} state={{ from: loc.pathname }} replace />;
+  // A student still on the temporary password must change it before anything else.
+  if (user.role === "STUDENT" && user.mustChangePassword) return <Navigate to="/change-password" replace />;
   if (!roles.includes(user.role)) return <Navigate to={user.role === "STUDENT" ? "/chat" : "/admin"} replace />;
   return <>{children}</>;
 }
@@ -41,6 +44,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/account-expired" element={user ? <Navigate to={user.role === "STUDENT" ? "/chat" : "/admin"} replace /> : <AccountExpired />} />
+      <Route path="/change-password" element={loading ? <FullScreenSpinner /> : user ? <ChangePassword /> : <Navigate to="/login" replace />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
