@@ -1,10 +1,10 @@
 import * as XLSX from "xlsx";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { hashPassword } from "../lib/crypto.js";
 import { normalizeEmail } from "../auth/authService.js";
 import { toE164, combineE164 } from "../lib/phoneIntl.js";
 import { getSettings } from "../settings/settingsService.js";
-import { enqueue } from "../jobs/queue.js";
 import { writeAudit } from "../audit/audit.js";
 import { badRequest } from "../lib/errors.js";
 
@@ -206,6 +206,9 @@ export interface ImportResult {
 // Create accounts for the confirmed rows. Idempotent on retry: an existing email
 // is reported as a duplicate, never overwritten. Each created student gets the
 // temp password + mustChangePassword and a queued credential email.
+//
+// Batched: instead of per-row round-trips (slow for large imports), it does one
+// existence query, one bulk insert, and one bulk enqueue of the credential emails.
 export async function commitImport(
   actorId: string,
   rows: CommitRow[],
@@ -218,6 +221,8 @@ export async function commitImport(
   const results: ImportResult["rows"] = [];
   let created = 0, duplicates = 0, failed = 0;
 
+  // 1. Validate + compute each row into an insert payload (no DB yet).
+  const valid: Prisma.UserCreateManyInput[] = [];
   for (const r of rows) {
     const email = normalizeEmail(r.email);
     try {
@@ -227,7 +232,7 @@ export async function commitImport(
       const phone = r.phone?.trim() ? toE164(r.phone) : null;
       if (r.phone?.trim() && !phone) throw new Error("Invalid phone");
 
-      let expiresAt: Date | null = null;
+      let expiresAt: Date;
       if (r.customExpiresAt) {
         const d = new Date(r.customExpiresAt);
         if (Number.isNaN(d.getTime()) || d.getTime() <= now.getTime()) throw new Error("Invalid expiry date");
@@ -238,36 +243,55 @@ export async function commitImport(
         expiresAt = new Date(now.getTime() + days * DAY_MS);
       }
 
-      if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
-        duplicates++;
-        results.push({ email, result: "duplicate" });
-        continue;
-      }
-
-      const user = await prisma.user.create({
-        data: {
-          email,
-          name,
-          passwordHash: pwHash,
-          role: "STUDENT",
-          phone,
-          studentIdNo: r.studentIdNo?.trim() || null,
-          emailVerified: true,
-          status: "ACTIVE",
-          accessStartAt: now,
-          accessExpiresAt: expiresAt,
-          createdByAdminId: actorId,
-          mustChangePassword: true,
-          credentialEmailStatus: "PENDING",
-        },
-        select: { id: true },
+      valid.push({
+        email, name, passwordHash: pwHash, role: "STUDENT", phone,
+        studentIdNo: r.studentIdNo?.trim() || null,
+        emailVerified: true, status: "ACTIVE",
+        accessStartAt: now, accessExpiresAt: expiresAt,
+        createdByAdminId: actorId, mustChangePassword: true, credentialEmailStatus: "PENDING",
       });
-      await enqueue("sendEmail", { type: "credential", userId: user.id }, { dedupeKey: `credential:${user.id}` });
-      created++;
-      results.push({ email, result: "created" });
     } catch (err) {
       failed++;
       results.push({ email, result: "failed", error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // 2. One query for already-existing emails; drop them + in-file duplicates.
+  const emails = valid.map((v) => v.email as string);
+  const existing = new Set(
+    (await prisma.user.findMany({ where: { email: { in: emails } }, select: { email: true } })).map((u) => u.email),
+  );
+  const seen = new Set<string>();
+  const toCreate: Prisma.UserCreateManyInput[] = [];
+  for (const v of valid) {
+    const email = v.email as string;
+    if (existing.has(email) || seen.has(email)) {
+      duplicates++;
+      results.push({ email, result: "duplicate" });
+      continue;
+    }
+    seen.add(email);
+    toCreate.push(v);
+    results.push({ email, result: "created" });
+  }
+
+  // 3. Bulk insert, then 4. bulk-enqueue one credential email per new student.
+  if (toCreate.length) {
+    await prisma.user.createMany({ data: toCreate, skipDuplicates: true });
+    created = toCreate.length;
+    const createdUsers = await prisma.user.findMany({
+      where: { email: { in: toCreate.map((d) => d.email as string) } },
+      select: { id: true },
+    });
+    if (createdUsers.length) {
+      await prisma.job.createMany({
+        data: createdUsers.map((u) => ({
+          type: "sendEmail",
+          payload: { type: "credential", userId: u.id } as object,
+          dedupeKey: `credential:${u.id}`,
+        })),
+        skipDuplicates: true,
+      });
     }
   }
 
