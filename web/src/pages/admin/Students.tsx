@@ -93,6 +93,18 @@ export default function Students() {
           <p className="text-sm" style={{ color: "var(--text-soft)" }}>Create and manage time-limited student accounts.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const r = await api.post<{ count: number }>("/admin/students/resend-credentials-all", {});
+                toast(r.count ? `Re-queued credential emails for ${r.count} student(s).` : "No pending or failed emails to resend.", r.count ? "success" : "info");
+              } catch (err) {
+                toast(err instanceof ApiError ? err.message : "Failed", "error");
+              }
+            }}
+            className="rounded-full px-4 py-2 text-sm font-medium"
+            style={{ background: "var(--surface-2)", color: "var(--text)" }}
+          >Resend failed emails</button>
           <a href="/api/admin/students/import/template" download className="rounded-full px-4 py-2 text-sm font-medium" style={{ background: "var(--surface-2)", color: "var(--text)" }}>Download CSV template</a>
           <Button variant="secondary" onClick={() => setShowImport(true)}>Bulk import</Button>
           <Button onClick={() => setShowCreate((v) => !v)}>{showCreate ? "Close" : "+ New student"}</Button>

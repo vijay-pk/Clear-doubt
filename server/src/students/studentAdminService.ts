@@ -145,6 +145,28 @@ export async function resendCredentials(actorId: string, id: string): Promise<vo
   await writeAudit({ actorId, action: "student.resend_credentials", entityType: "User", entityId: student.id });
 }
 
+// Re-queue credential emails for every student whose email is still pending or
+// failed (e.g. after fixing Resend). Clears any dead-lettered jobs first so they
+// actually re-send. Returns how many were re-queued.
+export async function resendAllPendingCredentials(actorId: string): Promise<number> {
+  const students = await prisma.user.findMany({
+    where: { role: "STUDENT", status: { not: "DELETION_PENDING" }, credentialEmailStatus: { in: ["PENDING", "FAILED"] } },
+    select: { id: true },
+  });
+  if (!students.length) return 0;
+  const ids = students.map((s) => s.id);
+  const keys = ids.map((id) => `credential:${id}`);
+  await prisma.user.updateMany({ where: { id: { in: ids } }, data: { credentialEmailStatus: "PENDING" } });
+  // Remove old (possibly dead-lettered) jobs, then enqueue fresh ones in bulk.
+  await prisma.job.deleteMany({ where: { type: "sendEmail", dedupeKey: { in: keys } } });
+  await prisma.job.createMany({
+    data: ids.map((id) => ({ type: "sendEmail", payload: { type: "credential", userId: id } as object, dedupeKey: `credential:${id}` })),
+    skipDuplicates: true,
+  });
+  await writeAudit({ actorId, action: "student.resend_credentials_bulk", meta: { count: ids.length } });
+  return ids.length;
+}
+
 export async function listStudents(opts: { search?: string; state?: DerivedState }): Promise<StudentView[]> {
   const where: Prisma.UserWhereInput = { role: "STUDENT" };
   if (opts.search?.trim()) {

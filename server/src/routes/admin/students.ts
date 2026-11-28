@@ -16,6 +16,7 @@ import {
   deletionPreview,
   requestDeletion,
   resendCredentials,
+  resendAllPendingCredentials,
   computeExpiry,
 } from "../../students/studentAdminService.js";
 import { parseImportFile, buildPreview, commitImport, sampleCsv } from "../../students/importService.js";
@@ -79,6 +80,15 @@ studentsRouter.get(
   asyncHandler(async (_req, res) => {
     const batches = await prisma.importBatch.findMany({ orderBy: { createdAt: "desc" }, take: 30 });
     res.json({ batches });
+  }),
+);
+
+// Re-send credential emails to all students still pending/failed (bulk retry).
+studentsRouter.post(
+  "/students/resend-credentials-all",
+  asyncHandler(async (req, res) => {
+    const count = await resendAllPendingCredentials(req.user!.id);
+    res.json({ count });
   }),
 );
 
